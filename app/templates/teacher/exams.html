@@ -1,0 +1,112 @@
+<!-- app/templates/teacher/exams.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Ujian - INFORMATIKA WORLD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
+        <div class="flex gap-4">
+            <a href="/teacher/question-banks" class="text-sm text-indigo-400 hover:underline">🧠 Bank Soal</a>
+            <a href="/teacher/exams" class="text-sm text-cyan-400 hover:underline font-bold">📝 Ujian</a>
+        </div>
+        <!-- Di nav exams.html -->
+        <div class="flex gap-4 text-sm">
+            <a href="/teacher/question-banks" class="text-indigo-400 hover:underline">🧠 Bank Soal</a>
+            <span class="text-white font-bold">📝 Ujian</span>
+            <a href="/teacher/grades" class="text-indigo-400 hover:underline">⚖️ Nilai</a>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">📝 Kelola Ujian / Formatif</h2>
+
+        <!-- Form Buat Ujian -->
+        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md border border-slate-700">
+            <h3 class="text-lg font-semibold text-indigo-400 mb-4">Buat Sesi Ujian Baru</h3>
+            <form action="/teacher/exams/create" method="POST" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm mb-1">Judul Ujian</label>
+                        <input type="text" name="title" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Bank Soal Sumber</label>
+                        <select name="bank_id" required class="w-full p-2 bg-slate-700 rounded border border-slate-600">
+                            {% for bank in banks %}
+                            <option value="{{ bank.id }}">{{ bank.title }} (Kelas {{ bank.class_target }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Target Kelas</label>
+                        <select name="class_target" required class="w-full p-2 bg-slate-700 rounded border border-slate-600">
+                            <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Durasi (Menit)</label>
+                        <input type="number" name="duration_minutes" value="15" min="1" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                </div>
+
+                <div class="flex gap-6 items-center">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="randomize_questions" class="w-4 h-4 text-cyan-500">
+                        <span class="text-sm">Acak Urutan Soal</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="randomize_options" class="w-4 h-4 text-cyan-500">
+                        <span class="text-sm">Acak Urutan Opsi (A/B/C/D)</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition">
+                    Buat Ujian
+                </button>
+            </form>
+        </div>
+
+        <!-- Daftar Ujian -->
+        <h3 class="text-lg font-semibold text-indigo-400 mb-4">Daftar Ujian</h3>
+        <div class="space-y-4">
+            {% for exam in exams %} 
+                <!-- Tambahkan di dalam div flex tombol aksi -->
+            <a href="/teacher/exams/{{ exam.id }}/results" class="text-sm text-cyan-400 hover:underline ml-4">📊 Hasil</a>
+            <div class="bg-slate-800 p-4 rounded-lg border-l-4 {{ 'border-green-500' if exam.is_published else 'border-yellow-500' }} shadow">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="text-lg font-bold">{{ exam.title }}</h4>
+                        <p class="text-sm text-slate-400 mt-1">
+                            Kelas {{ exam.class_target }} | ⏱ {{ exam.duration_minutes }} Menit | 
+                            Acak Soal: {{ '✅' if exam.randomize_questions else '❌' }} | 
+                            Acak Opsi: {{ '✅' if exam.randomize_options else '❌' }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold {{ 'bg-green-900 text-green-400' if exam.is_published else 'bg-yellow-900 text-yellow-400' }}">
+                            {{ 'PUBLISHED' if exam.is_published else 'DRAF' }}
+                        </span>
+                        <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
+                            <button type="submit" class="text-sm {{ 'text-red-400 hover:underline' if exam.is_published else 'text-cyan-400 hover:underline' }}">
+                                {{ 'Unpublish' if exam.is_published else 'Publish' }}
+                            </button>
+                        </form>
+                        <!-- Tambahkan di div flex tombol aksi@ -->
+                        <form action="/teacher/exams/{{ exam.id }}/delete" method="POST" class="ml-2" onsubmit="return confirm('Yakin hapus ujian ini? Semua sesi & jawaban siswa akan terhapus permanen!');">
+                            <button type="submit" class="text-sm text-red-500 hover:underline">🗑️ Hapus</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-slate-500 italic">Belum ada ujian.</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

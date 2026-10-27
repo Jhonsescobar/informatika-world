@@ -1,0 +1,40 @@
+<!-- app/templates/teacher/class_grades.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Nilai - INFORMATIKA WORLD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
+        <a href="/teacher/grades" class="text-sm text-indigo-400 hover:underline">← Kembali ke Bobot</a>
+    </nav>
+    <div class="container mx-auto p-6">
+        <h2 class="text-2xl font-bold mb-6 text-cyan-400">🎓 Rekap Nilai Akhir Kelas {{ class_target }}</h2>
+        <p class="text-sm text-slate-400 mb-4">*Nilai dihitung otomatis oleh Grade Engine berdasarkan bobot.</p>
+        
+        <div class="bg-slate-800 rounded-lg overflow-hidden shadow-lg">
+            <table class="w-full text-left">
+                <thead class="bg-slate-700">
+                    <tr>
+                        <th class="p-4">Nama Siswa</th>
+                        <th class="p-4 text-right">Final Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students_data %}
+                    <tr class="border-b border-slate-700 hover:bg-slate-800">
+                        <td class="p-4">{{ s.name }}</td>
+                        <td class="p-4 text-right font-bold {{ 'text-green-400' if s.final_score >= 75 else 'text-red-400' }}">{{ s.final_score }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="2" class="p-4 text-center text-slate-500">Belum ada data siswa di kelas ini.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

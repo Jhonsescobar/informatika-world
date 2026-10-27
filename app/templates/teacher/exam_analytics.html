@@ -1,0 +1,65 @@
+<!-- app/templates/teacher/exam_analytics.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - INFORMATIKA WORLD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
+        <a href="/teacher/exams/{{ exam.id }}/results" class="text-sm text-indigo-400 hover:underline">← Kembali ke Hasil</a>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">📈 Analytics: {{ exam.title }}</h2>
+
+        {% if not analytics %}
+            <p class="text-slate-500 italic mt-8 text-center">Belum ada data karena belum ada siswa yang menyelesaikan ujian ini.</p>
+        {% else %}
+            <!-- Kartu Statistik Utama -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-slate-800 p-4 rounded-lg shadow text-center border-t-4 border-indigo-500">
+                    <p class="text-sm text-slate-400 mb-1">Jumlah Siswa</p>
+                    <p class="text-3xl font-bold text-white">{{ analytics.total_students }}</p>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg shadow text-center border-t-4 border-cyan-500">
+                    <p class="text-sm text-slate-400 mb-1">Rata-rata Skor</p>
+                    <p class="text-3xl font-bold text-cyan-400">{{ analytics.avg_score }}</p>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg shadow text-center border-t-4 border-green-500">
+                    <p class="text-sm text-slate-400 mb-1">Skor Tertinggi</p>
+                    <p class="text-3xl font-bold text-green-400">{{ analytics.highest_score }}</p>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg shadow text-center border-t-4 border-red-500">
+                    <p class="text-sm text-slate-400 mb-1">Skor Terendah</p>
+                    <p class="text-3xl font-bold text-red-400">{{ analytics.lowest_score }}</p>
+                </div>
+            </div>
+
+            <!-- Bagian Soal Paling Sulit -->
+            <h3 class="text-lg font-semibold text-yellow-400 mb-4">🔥 Soal Paling Sering Salah (Top 3)</h3>
+            <div class="space-y-4">
+                {% for q in analytics.hardest_questions %}
+                <div class="bg-slate-800 p-5 rounded-lg shadow-md border border-slate-700">
+                    <p class="font-semibold mb-2 text-slate-300">{{ loop.index }}. {{ q.text }}</p>
+                    <div class="flex items-center gap-4 text-sm">
+                        <span class="text-red-400">❌ Salah: {{ q.wrong }} siswa</span>
+                        <span class="text-green-400">✅ Benar: {{ q.correct }} siswa</span>
+                        <span class="ml-auto font-bold text-yellow-400">Error Rate: {{ q.error_rate }}%</span>
+                    </div>
+                    <!-- Bar visual error rate -->
+                    <div class="w-full bg-slate-700 rounded-full h-2 mt-3">
+                        <div class="bg-red-500 h-2 rounded-full" style="width: {{ q.error_rate }}%"></div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-slate-500 italic">Tidak ada data kesalahan.</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

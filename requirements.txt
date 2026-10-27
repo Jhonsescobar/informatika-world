@@ -1,0 +1,32 @@
+# requirements.txt
+# File ini berisi daftar library Python yang dibutuhkan proyek
+
+# FastAPI: Framework utama untuk membuat backend API dengan cepat
+fastapi
+
+# Uvicorn: Server yang menjalankan FastAPI (agar bisa diakses via browser)
+uvicorn[standard]
+
+# SQLAlchemy: ORM (Object Relational Mapper) untuk berbicara dengan Database
+sqlalchemy
+
+# Alembic: Untuk migrasi database (mengubah struktur tabel dengan aman)
+alembic
+
+# Psycopg2: Driver khusus agar Python bisa terhubung ke PostgreSQL
+psycopg2-binary
+
+# Python-dotenv: Membaca file .env (menyimpan rahasia seperti password DB)
+python-dotenv
+
+# Passlib & Argon2: Untuk meng-hash (mengamankan) PIN siswa
+passlib[argon2]
+
+# Pydantic: Untuk memvalidasi data masuk (sudah bawaan FastAPI, tapi kita pastikan)
+pydantic
+
+# Python-multipart: Agar FastAPI bisa membaca data dari form HTML
+python-multipart
+
+# Jinja2: Template engine untuk merender halaman HTML
+jinja2

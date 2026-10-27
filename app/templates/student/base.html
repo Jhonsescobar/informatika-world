@@ -1,0 +1,47 @@
+<!-- app/templates/student/base.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}INFORMATIKA WORLD{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styling untuk scrollbar dan animasi halus */
+        body { font-family: 'Segoe UI', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen flex flex-col">
+    
+    <!-- Konten Utama (Bisa di-scroll) -->
+    <main class="flex-1 pb-20 px-4 pt-4 max-w-lg mx-auto w-full">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- BOTTOM NAVIGATION BAR (Ciri khas Mobile App) -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 py-2 flex justify-around items-center z-50 shadow-lg">
+        
+        <!-- Tombol Home -->
+        <a href="/student/dashboard" class="flex flex-col items-center transition hover:text-cyan-300 {{ 'text-cyan-400' if active_page == 'home' else 'text-slate-500' }}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            <span class="text-[10px] mt-1 font-medium">Home</span>
+        </a>
+
+        <!-- Tombol Leaderboard -->
+        <a href="/student/leaderboard" class="flex flex-col items-center transition hover:text-cyan-300 {{ 'text-cyan-400' if active_page == 'leaderboard' else 'text-slate-500' }}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            <span class="text-[10px] mt-1 font-medium">Ranks</span>
+        </a>
+
+        <!-- Tombol Achievements -->
+        <a href="/student/achievements" class="flex flex-col items-center transition hover:text-cyan-300 {{ 'text-cyan-400' if active_page == 'achievements' else 'text-slate-500' }}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.282 2.282m0 0l1.832 3.665M13.282 5.282l1.832 3.665m0 0l2.282 2.282m-2.282-2.282l-3.665 1.832M11 13l-3.665-1.832m0 0L4.451 8.633M11 13l2.282 2.282m0 0l3.665 1.832M13.282 15.282l3.665 1.832m0 0l2.282-2.282m-2.282 2.282l-1.832-3.665" /></svg>
+            <span class="text-[10px] mt-1 font-medium">Badges</span>
+        </a>
+
+    </nav>
+</body>
+</html>

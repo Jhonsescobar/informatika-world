@@ -1,0 +1,88 @@
+<!-- app/templates/teacher/bank_detail.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Bank Soal - INFORMATIKA WORLD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
+        <a href="/teacher/question-banks" class="text-sm text-indigo-400 hover:underline">← Kembali ke Daftar Bank</a>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h2 class="text-2xl font-bold mb-6 text-purple-400">{{ bank.title }} (Kelas {{ bank.class_target }})</h2>
+
+        <!-- Form Tambah Soal -->
+        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md border border-slate-700">
+            <h3 class="text-lg font-semibold text-indigo-400 mb-4">Tambah Soal Baru</h3>
+            <form action="/teacher/questions/create" method="POST" class="space-y-4">
+                <input type="hidden" name="bank_id" value="{{ bank.id }}">
+                
+                <div>
+                    <label class="block text-sm mb-1">Teks Soal</label>
+                    <textarea name="question_text" rows="3" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm mb-1 text-cyan-400">Opsi A</label>
+                        <input type="text" name="option_A" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1 text-cyan-400">Opsi B</label>
+                        <input type="text" name="option_B" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1 text-cyan-400">Opsi C</label>
+                        <input type="text" name="option_C" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1 text-cyan-400">Opsi D</label>
+                        <input type="text" name="option_D" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                </div>
+
+                <div class="flex gap-4 items-center">
+                    <div>
+                        <label class="block text-sm mb-1">Kunci Jawaban</label>
+                        <select name="correct_key" required class="p-2 bg-slate-700 rounded border border-slate-600">
+                            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Poin</label>
+                        <input type="number" name="points" value="1" min="1" class="w-20 p-2 bg-slate-700 rounded border border-slate-600 outline-none">
+                    </div>
+                </div>
+                
+                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition">
+                    Simpan Soal
+                </button>
+            </form>
+        </div>
+
+        <!-- Daftar Soal yang Sudah Ada -->
+        <h3 class="text-lg font-semibold text-indigo-400 mb-4">Soal di Bank Ini</h3>
+        <div class="space-y-6">
+            {% for q in questions %}
+            <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-indigo-500 shadow">
+                <p class="font-bold mb-2">{{ loop.index }}. {{ q.text }} <span class="text-xs text-slate-400">({{ q.points }} poin)</span></p>
+                <ul class="grid grid-cols-2 gap-2 text-sm">
+                    {% for opt in q.options %}
+                    <li class="{{ 'text-green-400 font-bold' if opt.is_correct else 'text-slate-300' }}">
+                        {{ '✅' if opt.is_correct else '⚪' }} {{ opt.text }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <p class="text-slate-500 italic">Belum ada soal di bank ini.</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!-- app/templates/student/achievements.html -->
+{% extends "student/base.html" %}
+
+{% block title %}Achievements - INFORMATIKA WORLD{% endblock %}
+
+{% block content %}
+<div class="mt-2 mb-6">
+    <h1 class="text-2xl font-bold text-yellow-400">🎖️ Koleksi Achievement</h1>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+    {% for ach in all_achievements %}
+    
+    {% if ach.id in my_award_ids %}
+        <!-- Unlocked -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-yellow-500 shadow-lg text-center">
+            <div class="text-4xl mb-2">{{ ach.icon }}</div>
+            <h3 class="font-bold text-yellow-400 text-sm">{{ ach.name }}</h3>
+            <span class="inline-block mt-2 text-[10px] bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full">Unlocked!</span>
+        </div>
+    {% else %}
+        <!-- Locked -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center opacity-40">
+            <div class="text-4xl mb-2 grayscale">{{ ach.icon }}</div>
+            <h3 class="font-bold text-slate-400 text-sm">{{ ach.name }}</h3>
+            <span class="inline-block mt-2 text-[10px] bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">🔒 Locked</span>
+        </div>
+    {% endif %}
+    
+    {% endfor %}
+</div>
+{% endblock %}

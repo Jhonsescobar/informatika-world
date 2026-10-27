@@ -1,0 +1,22 @@
+# .gitignore
+# File dan folder yang tidak boleh di-track oleh Git
+
+# Virtual environment
+venv/
+
+# File rahasia
+.env
+
+# File database lokal / backup
+*.sql
+*.db
+
+# File upload sementara
+app/static/uploads/*
+
+# Folder cache Python
+__pycache__/
+*.pyc
+
+# Folder build Tailwind nanti
+node_modules/
