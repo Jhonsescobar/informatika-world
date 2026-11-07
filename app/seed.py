@@ -56,7 +56,21 @@ def seed_database():
         kelas_8 = SchoolClass(class_name="VIII")
         kelas_9 = SchoolClass(class_name="IX")
         db.add_all([kelas_7, kelas_8, kelas_9])
+        db.flush()  # isi kelas_7.id dst. sebelum dipakai untuk class_id rombel
         # Menambahkan 3 kelas sekaligus
+
+                # 4b. BUAT 9 ROMBEL (VII.1 - IX.3)
+        print("Membuat 9 Rombel...")
+        rombels_data = [
+            ("VII.1", kelas_7.id), ("VII.2", kelas_7.id), ("VII.3", kelas_7.id),
+            ("VIII.1", kelas_8.id), ("VIII.2", kelas_8.id), ("VIII.3", kelas_8.id),
+            ("IX.1", kelas_9.id), ("IX.2", kelas_9.id), ("IX.3", kelas_9.id),
+        ]
+        for r_name, c_id in rombels_data:
+            existing = db.query(Rombel).filter(Rombel.rombel_name == r_name).first()
+            if not existing:
+                db.add(Rombel(rombel_name=r_name, class_id=c_id))
+        db.commit()
 
         # 6. MEMBUAT SISWA CONTOH
         print("Membuat akun Siswa contoh...")
