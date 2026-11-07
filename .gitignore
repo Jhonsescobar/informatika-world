@@ -20,3 +20,13 @@ __pycache__/
 
 # Folder build Tailwind nanti
 node_modules/
+
+# Program eksternal (diunduh sendiri, bukan bagian kode)
+cloudflared.exe
+*.exe
+
+# Folder cadangan sementara hasil perapihan (cek dulu, lalu hapus manual)
+_to_delete/
+
+# Cache pytest
+.pytest_cache/

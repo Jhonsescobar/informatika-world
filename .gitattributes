@@ -1,0 +1,14 @@
+# .gitattributes
+# Menyeragamkan akhir baris: di repo selalu LF, di laptop mengikuti sistem.
+# Ini mencegah Git menganggap seluruh isi file berubah hanya karena CRLF/LF.
+* text=auto
+
+# File biner jangan pernah diubah akhir barisnya
+*.exe binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
