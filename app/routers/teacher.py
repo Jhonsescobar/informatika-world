@@ -415,11 +415,26 @@ async def delete_bank(bank_id: int, db: Session = Depends(get_db), user=Depends(
         
     return RedirectResponse(url="/teacher/question-banks", status_code=303)
 
+def tahun_ajaran_aktif(db: Session):
+    # Tahun ajaran yang sedang aktif (is_active = 1); dipakai saat siswa dimasukkan ke rombel
+    tahun = db.query(AcademicYear).filter(AcademicYear.is_active == 1).order_by(AcademicYear.id.desc()).first()
+    if tahun is None:
+        raise HTTPException(status_code=400, detail="Belum ada tahun ajaran aktif. Jalankan: python ganti_tahun_ajaran.py")
+    return tahun
+
 # --- BULK IMPORT SISWA + AUTO PIN ---
 @router.post("/students/bulk-create")
 async def bulk_create_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     form = await request.form()
     names_text = form.get("names_text") # Ambil teks dari textarea
+
+    # Rombel tujuan dari dropdown (boleh kosong = siswa belum masuk rombel)
+    rombel = None
+    if form.get("rombel_id"):
+        rombel = db.query(Rombel).filter(Rombel.id == int(form.get("rombel_id"))).first()
+        if rombel is None:
+            raise HTTPException(status_code=400, detail="Rombel tidak ditemukan")
+        tahun = tahun_ajaran_aktif(db)
     
     # Pisahkan teks berdasarkan baris baru (enter)
     names = [n.strip() for n in names_text.split("\n") if n.strip()]
@@ -439,6 +454,11 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
         db.add(new_student)
         db.commit()
         db.refresh(new_student)
+
+        if rombel:
+            # Langsung daftarkan siswa ke rombel yang dipilih
+            db.add(Enrollment(student_id=new_student.id, rombel_id=rombel.id, academic_year_id=tahun.id))
+            db.commit()
         
         # Simpan nama + PIN plain text untuk ditampilkan ke guru
         created_students.append({"name": name, "pin": pin})
@@ -452,9 +472,21 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
 @router.get("/students", response_class=HTMLResponse)
 async def list_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     students = db.query(Student).order_by(Student.name).all()
+    # Daftar rombel diambil dari database (bukan ID yang ditulis manual di template)
+    rombels = db.query(Rombel, SchoolClass).join(SchoolClass, Rombel.class_id == SchoolClass.id).order_by(SchoolClass.id, Rombel.rombel_name).all()
     template = templates_env.get_template("teacher/students.html")
-    html_content = template.render(request=request, students=students, user=user)
+    html_content = template.render(request=request, students=students, rombels=rombels, user=user)
     return HTMLResponse(content=html_content)
+
+# --- KELUARKAN SISWA DARI ROMBEL ---
+# Hanya menghapus keanggotaan (enrollment). Akun siswa dan nilainya tetap ada.
+@router.post("/enrollments/{enrollment_id}/delete")
+async def remove_from_rombel(enrollment_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    enrollment = db.query(Enrollment).filter(Enrollment.id == enrollment_id).first()
+    if enrollment:
+        db.delete(enrollment)
+        db.commit()
+    return RedirectResponse(url="/teacher/students", status_code=303)
 
 @router.post("/students/create")
 async def create_student(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):

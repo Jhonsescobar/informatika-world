@@ -80,15 +80,17 @@ async def login_teacher(request: Request, db: Session = Depends(get_db)):
 
 # API pencarian nama siswa untuk AUTOCOMPLETE
 # (dipanggil oleh JavaScript di login_siswa.html setiap siswa berhenti mengetik)
-# PERUBAHAN: minimal 1 huruf (dulu harus 3), hasil diurutkan A-Z, maksimal 10 nama
+# Minimal 3 huruf supaya daftar nama siswa tidak bisa diintip dengan mengetik 1 huruf.
+# Hanya siswa aktif yang muncul, diurutkan A-Z, maksimal 10 nama.
 @router.get("/auth/student/search")
 async def search_student(name: str, db: Session = Depends(get_db)):
     keyword = name.strip()                            # buang spasi di awal/akhir teks
-    if len(keyword) < 1:                              # kalau kata kunci kosong (dulu: < 3)
-        return []                                     # kembalikan list kosong
+    if len(keyword) < 3:                              # kurang dari 3 huruf: jangan tampilkan nama apa pun
+        return []
     students = (                                       # cari siswa yang namanya MENGANDUNG kata kunci
         db.query(Student)
         .filter(Student.name.ilike(f"%{keyword}%"))    # ilike = tidak peduli huruf besar/kecil
+        .filter(Student.is_active == True)             # siswa nonaktif tidak bisa login, jadi tidak ditampilkan
         .order_by(Student.name)                        # urutkan A-Z supaya hasil konsisten
         .limit(10)                                     # maksimal 10 nama (dulu 5, dinaikkan karena 1 huruf bisa cocok banyak nama)
         .all()
