@@ -1,60 +1,44 @@
-<!-- app/templates/teacher/question_banks.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bank Soal - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
-    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
-        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
-        <div class="flex gap-4 text-sm">
-            <a href="/teacher/materials" class="text-indigo-400 hover:underline">📚 Materi</a>
-            <span class="text-white font-bold">🧠 Bank Soal</span>
-            <a href="/teacher/exams" class="text-indigo-400 hover:underline">📝 Ujian</a>
-            <a href="/teacher/grades" class="text-indigo-400 hover:underline">⚖️ Nilai</a>
-        </div>
-    </nav>
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'banks' %}
+{% block title %}Bank Soal · Informatika World{% endblock %}
+{% block eyebrow %}Bank soal{% endblock %}
+{% block heading %}Kumpulan soal <em>siap pakai</em>{% endblock %}
+{% block lead %}<p class="lead">Satu bank soal bisa dipakai untuk beberapa ujian. Buka bank untuk menambah soal.</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel" aria-labelledby="judul-form">
+    <h2 class="h-section" id="judul-form">Bank soal baru</h2>
+    <form action="/teacher/question-banks/create" method="POST" class="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-end">
+      <label class="field"><span class="label">Nama bank soal</span>
+        <input type="text" name="title" required class="input" placeholder="cth: Berpikir Komputasional"></label>
+      <label class="field"><span class="label">Kelas</span>
+        <select name="class_target" required class="select">
+          <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
+        </select></label>
+      <button type="submit" class="btn btn-primary">Buat</button>
+    </form>
+  </section>
 
-    <div class="container mx-auto p-6">
-        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">🧠 Bank Soal</h2>
-
-        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md">
-            <h3 class="text-lg font-semibold text-indigo-400 mb-4">Buat Bank Soal Baru</h3>
-            <form action="/teacher/question-banks/create" method="POST" class="flex gap-4 items-end">
-                <div class="flex-1">
-                    <label class="block text-sm mb-1">Nama Bank Soal</label>
-                    <input type="text" name="title" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Kelas</label>
-                    <select name="class_target" required class="p-2 bg-slate-700 rounded border border-slate-600">
-                        <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
-                    </select>
-                </div>
-                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">Buat</button>
-            </form>
+  <section class="panel panel-tight" aria-label="Daftar bank soal">
+    <div class="rows">
+      {% for bank in banks %}
+      <div class="row">
+        <a href="/teacher/question-banks/{{ bank.id }}" class="row-main group" style="text-decoration:none;color:inherit">
+          <p class="row-title group-hover:underline">{{ bank.title }}</p>
+          <p class="row-meta"><span class="chip chip-teal">Kelas {{ bank.class_target }}</span><span>Buka untuk kelola soal</span></p>
+        </a>
+        <div class="row-actions">
+          <a href="/teacher/question-banks/{{ bank.id }}" class="link-action is-teal">Buka {{ icon('arrow-right') }}</a>
+          <form action="/teacher/question-banks/{{ bank.id }}/delete" method="POST" onsubmit="return confirm('Hapus bank soal ini? Semua soal, ujian yang memakainya, dan jawaban siswa ikut terhapus.');">
+            <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
+          </form>
         </div>
-
-        <div class="space-y-4">
-            {% for bank in banks %}
-            <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-purple-500 shadow flex justify-between items-center">
-                <!-- Bagian Kiri: Link ke Detail Bank -->
-                <a href="/teacher/question-banks/{{ bank.id }}" class="hover:bg-slate-700 transition flex-1 block p-2">
-                    <h4 class="text-lg font-bold">{{ bank.title }}</h4>
-                    <p class="text-sm text-slate-400">Kelas {{ bank.class_target }}</p>
-                </a>
-                <!-- Bagian Kanan: Tombol Hapus -->
-                <form action="/teacher/question-banks/{{ bank.id }}/delete" method="POST" onsubmit="return confirm('Yakin hapus bank soal ini? Semua soal di dalamnya akan terhapus!');">
-                    <button type="submit" class="text-sm text-red-500 hover:underline ml-4">🗑️ Hapus</button>
-                </form>
-            </div>
-            {% else %}
-            <p class="text-slate-500 italic">Belum ada bank soal.</p>
-            {% endfor %}
-        </div>
+      </div>
+      {% else %}
+      <div class="p-6"><div class="empty"><strong>Belum ada bank soal</strong>Buat bank soal dulu, lalu isi soalnya.</div></div>
+      {% endfor %}
     </div>
-</body>
-</html>
+  </section>
+</div>
+{% endblock %}

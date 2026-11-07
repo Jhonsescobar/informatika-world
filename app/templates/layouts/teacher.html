@@ -1,0 +1,35 @@
+{% extends "layouts/base.html" %}
+{% from "layouts/icons.html" import icon, brand %}
+{% set menu = [
+  ('materials', '/teacher/materials', 'Materi', 'book'),
+  ('banks', '/teacher/question-banks', 'Bank Soal', 'stack'),
+  ('exams', '/teacher/exams', 'Ujian', 'clipboard'),
+  ('grades', '/teacher/grades', 'Nilai', 'chart'),
+  ('students', '/teacher/students', 'Siswa', 'users'),
+] %}
+{% block body %}
+<div class="shell">
+  <aside class="sidebar">
+    {{ brand('/teacher/materials') }}
+    <nav class="side-nav" aria-label="Menu guru">
+      <p class="side-title">Ruang guru</p>
+      {% for key, href, label, ic in menu %}
+      <a href="{{ href }}" class="side-link{{ ' is-active' if active == key }}"{% if active == key %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+    </nav>
+    <form action="/logout" method="POST" class="side-foot">
+      <p>Masuk sebagai guru</p>
+      <button type="submit" class="btn btn-ghost btn-sm">{{ icon('logout') }}Keluar</button>
+    </form>
+  </aside>
+  <main class="main" id="konten">
+    <header class="page-head">
+      {% block back %}{% endblock %}
+      <p class="eyebrow">{% block eyebrow %}{% endblock %}</p>
+      <h1 class="h-display">{% block heading %}{% endblock %}</h1>
+      {% block lead %}{% endblock %}
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -1,112 +1,74 @@
-<!-- app/templates/teacher/exams.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Ujian - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
-    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
-        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
-        <div class="flex gap-4">
-            <a href="/teacher/question-banks" class="text-sm text-indigo-400 hover:underline">🧠 Bank Soal</a>
-            <a href="/teacher/exams" class="text-sm text-cyan-400 hover:underline font-bold">📝 Ujian</a>
-        </div>
-        <!-- Di nav exams.html -->
-        <div class="flex gap-4 text-sm">
-            <a href="/teacher/question-banks" class="text-indigo-400 hover:underline">🧠 Bank Soal</a>
-            <span class="text-white font-bold">📝 Ujian</span>
-            <a href="/teacher/grades" class="text-indigo-400 hover:underline">⚖️ Nilai</a>
-        </div>
-    </nav>
-
-    <div class="container mx-auto p-6">
-        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">📝 Kelola Ujian / Formatif</h2>
-
-        <!-- Form Buat Ujian -->
-        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md border border-slate-700">
-            <h3 class="text-lg font-semibold text-indigo-400 mb-4">Buat Sesi Ujian Baru</h3>
-            <form action="/teacher/exams/create" method="POST" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm mb-1">Judul Ujian</label>
-                        <input type="text" name="title" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm mb-1">Bank Soal Sumber</label>
-                        <select name="bank_id" required class="w-full p-2 bg-slate-700 rounded border border-slate-600">
-                            {% for bank in banks %}
-                            <option value="{{ bank.id }}">{{ bank.title }} (Kelas {{ bank.class_target }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm mb-1">Target Kelas</label>
-                        <select name="class_target" required class="w-full p-2 bg-slate-700 rounded border border-slate-600">
-                            <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm mb-1">Durasi (Menit)</label>
-                        <input type="number" name="duration_minutes" value="15" min="1" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                    </div>
-                </div>
-
-                <div class="flex gap-6 items-center">
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" name="randomize_questions" class="w-4 h-4 text-cyan-500">
-                        <span class="text-sm">Acak Urutan Soal</span>
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" name="randomize_options" class="w-4 h-4 text-cyan-500">
-                        <span class="text-sm">Acak Urutan Opsi (A/B/C/D)</span>
-                    </label>
-                </div>
-
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition">
-                    Buat Ujian
-                </button>
-            </form>
-        </div>
-
-        <!-- Daftar Ujian -->
-        <h3 class="text-lg font-semibold text-indigo-400 mb-4">Daftar Ujian</h3>
-        <div class="space-y-4">
-            {% for exam in exams %} 
-                <!-- Tambahkan di dalam div flex tombol aksi -->
-            <a href="/teacher/exams/{{ exam.id }}/results" class="text-sm text-cyan-400 hover:underline ml-4">📊 Hasil</a>
-            <div class="bg-slate-800 p-4 rounded-lg border-l-4 {{ 'border-green-500' if exam.is_published else 'border-yellow-500' }} shadow">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h4 class="text-lg font-bold">{{ exam.title }}</h4>
-                        <p class="text-sm text-slate-400 mt-1">
-                            Kelas {{ exam.class_target }} | ⏱ {{ exam.duration_minutes }} Menit | 
-                            Acak Soal: {{ '✅' if exam.randomize_questions else '❌' }} | 
-                            Acak Opsi: {{ '✅' if exam.randomize_options else '❌' }}
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <span class="px-3 py-1 rounded-full text-xs font-bold {{ 'bg-green-900 text-green-400' if exam.is_published else 'bg-yellow-900 text-yellow-400' }}">
-                            {{ 'PUBLISHED' if exam.is_published else 'DRAF' }}
-                        </span>
-                        <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
-                            <button type="submit" class="text-sm {{ 'text-red-400 hover:underline' if exam.is_published else 'text-cyan-400 hover:underline' }}">
-                                {{ 'Unpublish' if exam.is_published else 'Publish' }}
-                            </button>
-                        </form>
-                        <!-- Tambahkan di div flex tombol aksi@ -->
-                        <form action="/teacher/exams/{{ exam.id }}/delete" method="POST" class="ml-2" onsubmit="return confirm('Yakin hapus ujian ini? Semua sesi & jawaban siswa akan terhapus permanen!');">
-                            <button type="submit" class="text-sm text-red-500 hover:underline">🗑️ Hapus</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <p class="text-slate-500 italic">Belum ada ujian.</p>
-            {% endfor %}
-        </div>
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'exams' %}
+{% block title %}Ujian · Informatika World{% endblock %}
+{% block eyebrow %}Ujian & formatif{% endblock %}
+{% block heading %}Ujian <em>untuk siswa</em>{% endblock %}
+{% block lead %}<p class="lead">Ujian berstatus draf tidak terlihat siswa. Terbitkan saat sudah siap dikerjakan.</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel panel-tight" aria-labelledby="judul-daftar">
+    <div class="panel-head px-6 pt-6 mb-2">
+      <h2 class="h-section" id="judul-daftar">Daftar ujian</h2>
+      <span class="chip">{{ exams|selectattr('is_published')|list|length }} terbit · {{ exams|rejectattr('is_published')|list|length }} draf</span>
     </div>
-</body>
-</html>
+    <div class="rows">
+      {% for exam in exams %}
+      <article class="row flex-wrap">
+        <div class="row-main">
+          <p class="row-title">{{ exam.title }}</p>
+          <p class="row-meta">
+            {% if exam.is_published %}<span class="chip chip-teal chip-dot">Terbit</span>{% else %}<span class="chip chip-amber chip-dot">Draf</span>{% endif %}
+            <span>Kelas {{ exam.class_target }}</span>
+            <span>{{ exam.duration_minutes }} menit</span>
+            <span>Soal {{ 'diacak' if exam.randomize_questions else 'berurutan' }}</span>
+            <span>Opsi {{ 'diacak' if exam.randomize_options else 'tetap' }}</span>
+          </p>
+        </div>
+        <div class="row-actions">
+          <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil</a>
+          <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
+            <button type="submit" class="btn btn-sm {{ 'btn-ghost' if exam.is_published else 'btn-primary' }}">{{ 'Tarik dari siswa' if exam.is_published else 'Terbitkan' }}</button>
+          </form>
+          <form action="/teacher/exams/{{ exam.id }}/delete" method="POST" onsubmit="return confirm('Hapus ujian ini? Semua sesi dan jawaban siswa ikut terhapus permanen.');">
+            <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <div class="p-6"><div class="empty"><strong>Belum ada ujian</strong>Buat ujian dari salah satu bank soal di bawah.</div></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="judul-form">
+    <h2 class="h-section" id="judul-form">Ujian baru</h2>
+    {% if not banks %}
+    <div class="notice notice-amber mt-5">{{ icon('info') }}<span>Belum ada bank soal. <a href="/teacher/question-banks" class="underline">Buat bank soal</a> dulu.</span></div>
+    {% endif %}
+    <form action="/teacher/exams/create" method="POST" class="mt-5 flex flex-col gap-5">
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="field"><span class="label">Judul ujian</span>
+          <input type="text" name="title" required class="input"></label>
+        <label class="field"><span class="label">Bank soal</span>
+          <select name="bank_id" required class="select">
+            {% for bank in banks %}
+            <option value="{{ bank.id }}">{{ bank.title }} (Kelas {{ bank.class_target }})</option>
+            {% endfor %}
+          </select></label>
+        <label class="field"><span class="label">Kelas</span>
+          <select name="class_target" required class="select">
+            <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
+          </select></label>
+        <label class="field"><span class="label">Durasi (menit)</span>
+          <input type="number" name="duration_minutes" value="15" min="1" required class="input"></label>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <label class="check"><input type="checkbox" name="randomize_questions">Acak urutan soal</label>
+        <label class="check"><input type="checkbox" name="randomize_options">Acak urutan opsi A–D</label>
+      </div>
+      <div><button type="submit" class="btn btn-primary">Buat ujian</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

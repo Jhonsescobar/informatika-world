@@ -35,8 +35,10 @@ async def student_dashboard(request: Request, db: Session = Depends(get_db), use
     try:
         student_id = int(user.get("sub"))
         exams = db.query(Exam).filter(Exam.is_published == True).all()
+        student = db.query(Student).filter(Student.id == student_id).first()
         template = templates_env.get_template("student/dashboard.html")
-        html_content = template.render(request=request, exams=exams, student_id=student_id, user=user, active_page="home")
+        html_content = template.render(request=request, exams=exams, student_id=student_id,
+                                       student_name=student.name if student else "", user=user, active_page="home")
         return HTMLResponse(content=html_content)
     except Exception as e:
         return HTMLResponse(content=f"Error Dashboard: {traceback.format_exc()}", status_code=500)

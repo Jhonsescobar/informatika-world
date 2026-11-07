@@ -1,149 +1,123 @@
-<!-- app/templates/teacher/students.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Siswa - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
-    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
-        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
-        <div class="flex gap-4 text-sm">
-            <a href="/teacher/materials" class="text-indigo-400 hover:underline">📚 Materi</a>
-            <a href="/teacher/question-banks" class="text-indigo-400 hover:underline">🧠 Bank Soal</a>
-            <a href="/teacher/exams" class="text-indigo-400 hover:underline">📝 Ujian</a>
-            <a href="/teacher/grades" class="text-indigo-400 hover:underline">⚖️ Nilai</a>
-            <span class="text-white font-bold">👨‍🎓 Siswa</span>
-        </div>
-    </nav>
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'students' %}
+{% set aktif = students|selectattr('is_active')|list|length %}
+{% set tanpa_rombel = students|rejectattr('enrollments')|list|length %}
+{% block title %}Siswa · Informatika World{% endblock %}
+{% block eyebrow %}Data siswa{% endblock %}
+{% block heading %}Siswa & <em>rombel</em>{% endblock %}
+{% block content %}
+<div class="stack">
+  {% if deleted %}
+  <div class="notice" role="status">{{ icon('check') }}<span>Siswa dan seluruh datanya sudah dihapus permanen.</span></div>
+  {% endif %}
 
-    <div class="container mx-auto p-6">
-        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">👨‍🎓 Kelola Data Siswa</h2>
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-3">
+    <div class="panel stat stat-light"><span class="stat-label">Total siswa</span><span class="stat-value">{{ students|length }}</span></div>
+    <div class="panel stat"><span class="stat-label">Aktif</span><span class="stat-value">{{ aktif }}</span></div>
+    <div class="panel stat col-span-2 lg:col-span-1"><span class="stat-label">Belum punya rombel</span><span class="stat-value" {% if tanpa_rombel %}style="color:var(--amber)"{% endif %}>{{ tanpa_rombel }}</span></div>
+  </div>
 
-        <!-- BULK IMPORT -->
-         
-        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md border border-purple-700">
-            <h3 class="text-lg font-semibold text-purple-400 mb-2">⚡ Bulk Import (Banyak Siswa Sekaligus)</h3>
-            <p class="text-xs text-slate-400 mb-4">Pilih rombel tujuan (boleh dikosongkan), lalu paste daftar nama siswa. PIN dibuat otomatis.</p>
-            <form action="/teacher/students/bulk-create" method="POST">
-                <!-- PILIH ROMBEL -->
-                <div class="mb-4">
-                    <label class="block text-sm mb-1 font-semibold">Rombel Tujuan</label>
-                    <select name="rombel_id" class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                        <option value="">-- Belum masuk rombel --</option>
-                        {% set ns = namespace(kelas=None) %}
-                        {% for r, k in rombels %}
-                            {% if k.class_name != ns.kelas %}
-                                {% if ns.kelas %}</optgroup>{% endif %}
-                                <optgroup label="Kelas {{ k.class_name }}">
-                                {% set ns.kelas = k.class_name %}
-                            {% endif %}
-                            <option value="{{ r.id }}">{{ r.rombel_name }}</option>
-                        {% endfor %}
-                        {% if ns.kelas %}</optgroup>{% endif %}
-                    </select>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="block text-sm mb-1">Daftar Nama (satu per baris)</label>
-                    <textarea name="names_text" rows="6" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none font-mono text-sm" placeholder="Adel Margareth&#10;Adel Muhammad&#10;..."></textarea>
-                </div>
-                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded">
-                    ⚡ Generate PIN & Buat Semua
-                </button>
-            </form>
-        </div>
+  <section class="panel panel-accent" aria-labelledby="judul-impor">
+    <div class="panel-head">
+      <div>
+        <h2 class="h-section" id="judul-impor">Tambah banyak siswa</h2>
+        <p class="panel-note">Satu nama per baris. PIN 4 angka dibuat otomatis dan hanya ditampilkan sekali.</p>
+      </div>
+    </div>
+    <form action="/teacher/students/bulk-create" method="POST" class="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <label class="field"><span class="label">Rombel tujuan</span>
+        <select name="rombel_id" class="select">
+          <option value="">Belum masuk rombel</option>
+          {% set ns = namespace(kelas=None) %}
+          {% for r, k in rombels %}
+            {% if k.class_name != ns.kelas %}
+              {% if ns.kelas %}</optgroup>{% endif %}
+              <optgroup label="Kelas {{ k.class_name }}">
+              {% set ns.kelas = k.class_name %}
+            {% endif %}
+            <option value="{{ r.id }}">{{ r.rombel_name }}</option>
+          {% endfor %}
+          {% if ns.kelas %}</optgroup>{% endif %}
+        </select></label>
+      <label class="field"><span class="label">Daftar nama</span>
+        <textarea name="names_text" rows="5" required class="textarea mono" style="font-size:14px" placeholder="Adel Margareth&#10;Bima Nathanael&#10;..."></textarea></label>
+      <div class="lg:col-start-2"><button type="submit" class="btn btn-primary">{{ icon('key') }}Buat akun & PIN</button></div>
+    </form>
+  </section>
 
-        <!-- DAFTAR SISWA DENGAN AKSI -->
-        <!-- Versi Desktop (md ke atas) -->
-<div class="hidden md:block bg-slate-800 rounded-lg overflow-hidden shadow-lg">
-    <table class="w-full text-left">
-        <thead class="bg-slate-700">
-            <tr>
-                <th class="p-4">Nama</th>
-                <th class="p-4">Rombel</th>
-                <th class="p-4">NIPD</th>
-                <th class="p-4">Status</th>
-                <th class="p-4 text-center">Aksi</th>
-            </tr>
-        </thead>
+  <section class="panel panel-tight" aria-labelledby="judul-daftar">
+    <div class="panel-head px-6 pt-6 mb-0 pb-4" style="border-bottom:1px solid var(--line)">
+      <h2 class="h-section" id="judul-daftar">Semua siswa</h2>
+      <span class="chip">urut nama</span>
+    </div>
+
+    {# Laptop: tabel #}
+    <div class="hidden md:block overflow-x-auto">
+      <table class="table">
+        <thead><tr><th>Nama</th><th>Rombel</th><th>NIPD</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
         <tbody>
-            {% for s in students %}
-            <tr class="border-b border-slate-700 hover:bg-slate-800">
-                <td class="p-4 font-medium">{{ s.name }}</td>
-                <td class="p-4">
-                    {% if s.enrollments %}
-                        <span class="text-xs bg-indigo-900/50 text-indigo-400 px-2 py-1 rounded">{{ s.enrollments[0].rombel.rombel_name }}</span>
-                        <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" class="inline" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap aman.');">
-                            <button type="submit" class="text-xs text-red-400 hover:underline ml-2" title="Keluarkan dari rombel">✕ Keluarkan</button>
-                        </form>
-                    {% else %}
-                        <span class="text-xs text-slate-500">-</span>
-                    {% endif %}
-                </td>
-                <td class="p-4 text-slate-400">{{ s.nipd or '-' }}</td>
-                <td class="p-4">
-                    {% if s.is_active %}
-                    <span class="text-xs bg-green-900/50 text-green-400 px-2 py-1 rounded-full">Aktif</span>
-                    {% else %}
-                    <span class="text-xs bg-red-900/50 text-red-400 px-2 py-1 rounded-full">Nonaktif</span>
-                    {% endif %}
-                </td>
-                <td class="p-4 text-center">
-                    <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST" onsubmit="return confirm('Ubah status?');">
-                        <button type="submit" class="text-xs {{ 'text-red-400' if s.is_active else 'text-green-400' }} hover:underline">
-                            {{ 'Nonaktif' if s.is_active else 'Aktif' }}
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="p-4 text-center text-slate-500">Belum ada data siswa.</td></tr>
-            {% endfor %}
+          {% for s in students %}
+          <tr>
+            <td class="text-white font-semibold">{{ s.name }}</td>
+            <td>
+              {% if s.enrollments %}
+              <span class="inline-flex items-center gap-3">
+                <span class="chip chip-teal">{{ s.enrollments[0].rombel.rombel_name }}</span>
+                <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap ada.');">
+                  <button type="submit" class="link-action is-danger" title="Keluarkan dari rombel">{{ icon('x') }}Keluarkan</button>
+                </form>
+              </span>
+              {% else %}<span class="dim">–</span>{% endif %}
+            </td>
+            <td class="mono dim">{{ s.nipd or '–' }}</td>
+            <td>{% if s.is_active %}<span class="chip chip-teal chip-dot">Aktif</span>{% else %}<span class="chip chip-dot">Nonaktif</span>{% endif %}</td>
+            <td>
+              <div class="row-actions">
+                <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
+                  <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
+                </form>
+                <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5"><div class="empty my-4"><strong>Belum ada siswa</strong>Tambahkan lewat form di atas.</div></td></tr>
+          {% endfor %}
         </tbody>
-    </table>
-</div>
+      </table>
+    </div>
 
-<!-- Versi Mobile (di bawah md) -->
-<div class="md:hidden space-y-3">
-    {% for s in students %}
-    <div class="bg-slate-800 p-4 rounded-lg shadow">
-        <div class="flex justify-between items-start mb-2">
-            <div>
-                <h4 class="font-bold">{{ s.name }}</h4>
-                <p class="text-xs text-slate-400">{{ s.nipd or 'No NIPD' }}</p>
-            </div>
-            {% if s.is_active %}
-            <span class="text-xs bg-green-900/50 text-green-400 px-2 py-1 rounded-full">Aktif</span>
-            {% else %}
-            <span class="text-xs bg-red-900/50 text-red-400 px-2 py-1 rounded-full">Nonaktif</span>
-            {% endif %}
+    {# HP: kartu #}
+    <div class="md:hidden rows">
+      {% for s in students %}
+      <div class="row flex-col items-stretch gap-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="row-title">{{ s.name }}</p>
+            <p class="row-meta mono">{{ s.nipd or 'Tanpa NIPD' }}</p>
+          </div>
+          {% if s.is_active %}<span class="chip chip-teal chip-dot">Aktif</span>{% else %}<span class="chip chip-dot">Nonaktif</span>{% endif %}
         </div>
-        <div class="flex justify-between items-center">
-            {% if s.enrollments %}
-                <span class="flex items-center gap-2">
-                    <span class="text-xs bg-indigo-900/50 text-indigo-400 px-2 py-1 rounded">{{ s.enrollments[0].rombel.rombel_name }}</span>
-                    <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap aman.');">
-                        <button type="submit" class="text-xs text-red-400 hover:underline">✕ Keluarkan</button>
-                    </form>
-                </span>
-            {% else %}
-                <span class="text-xs text-slate-500">Belum ada rombel</span>
-            {% endif %}
-            <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST" onsubmit="return confirm('Ubah status?');">
-                <button type="submit" class="text-xs {{ 'text-red-400' if s.is_active else 'text-green-400' }} hover:underline">
-                    {{ '🚫 Nonaktif' if s.is_active else '✅ Aktif' }}
-                </button>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {% if s.enrollments %}
+          <span class="chip chip-teal">{{ s.enrollments[0].rombel.rombel_name }}</span>
+          <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap ada.');">
+            <button type="submit" class="link-action is-danger">{{ icon('x') }}Keluarkan</button>
+          </form>
+          {% else %}<span class="dim text-sm">Belum ada rombel</span>{% endif %}
+          <span class="ml-auto flex gap-4">
+            <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
+              <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
             </form>
+            <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
+          </span>
         </div>
+      </div>
+      {% else %}
+      <div class="p-6"><div class="empty"><strong>Belum ada siswa</strong>Tambahkan lewat form di atas.</div></div>
+      {% endfor %}
     </div>
-    {% else %}
-    <p class="text-slate-500 italic text-center py-4">Belum ada data siswa.</p>
-    {% endfor %}
+  </section>
 </div>
-
-    </div>
-</body>
-</html>
+{% endblock %}

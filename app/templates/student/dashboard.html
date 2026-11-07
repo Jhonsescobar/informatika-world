@@ -1,45 +1,30 @@
-<!-- app/templates/student/dashboard.html -->
-{% extends "student/base.html" %}
-
-{% block title %}Mission Control - INFORMATIKA WORLD{% endblock %}
-
+{% extends "layouts/student.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}Beranda · Informatika World{% endblock %}
+{% block eyebrow %}Beranda{% endblock %}
+{% block heading %}Halo{% if student_name %}, <em>{{ student_name.split(' ')[0]|e }}</em>{% endif %}{% endblock %}
+{% block lead %}<p class="lead">{% if exams %}Ada {{ exams|length }} ujian yang bisa kamu kerjakan. Waktu mulai berjalan saat kamu menekan Mulai.{% else %}Belum ada ujian yang dibuka guru.{% endif %}</p>{% endblock %}
 {% block content %}
-<div class="mt-2 mb-6">
-    <h1 class="text-2xl font-bold text-cyan-400">🌍 Mission Control</h1>
-    <p class="text-sm text-slate-400 mt-1">Selamat datang, Petugas Digital!</p>
-</div>
-
-<!-- Kartu Misi Aktif -->
-<h2 class="text-lg font-semibold text-indigo-400 mb-3 flex items-center gap-2">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-    Misi Aktif
-</h2>
-
-<div class="space-y-4">
-    {% for exam in exams %}
-    <div class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700 hover:border-indigo-500 transition group">
-        <div class="flex justify-between items-start mb-3">
-            <h3 class="font-bold text-lg text-white group-hover:text-indigo-300 transition">{{ exam.title }}</h3>
-            <span class="bg-indigo-900/50 text-indigo-400 text-xs font-bold px-2 py-1 rounded">Kelas {{ exam.class_target }}</span>
-        </div>
-        
-        <div class="flex items-center gap-2 text-sm text-slate-400 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <span>{{ exam.duration_minutes }} Menit</span>
-        </div>
-
-        <form action="/student/exam/start" method="POST">
-            <input type="hidden" name="exam_id" value="{{ exam.id }}">
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg text-sm transition flex justify-center items-center gap-2">
-                Mulai Misi
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </button>
-        </form>
+<section class="stack" aria-label="Ujian tersedia">
+  {% for exam in exams %}
+  <article class="panel">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="eyebrow" style="color:var(--amber)">Ujian {{ loop.index }}</p>
+        <h2 class="mt-2 font-semibold text-white text-lg" style="font-family:var(--font-display)">{{ exam.title }}</h2>
+      </div>
+      <span class="chip">Kelas {{ exam.class_target }}</span>
     </div>
-    {% else %}
-    <div class="text-center py-10 bg-slate-800 rounded-xl border border-dashed border-slate-700">
-        <p class="text-slate-500 italic">🛰️ Semua misi telah selesai. Siapkan diri untuk misi berikutnya!</p>
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-4">
+      <span class="inline-flex items-center gap-2 muted text-sm"><span class="w-4 h-4">{{ icon('clock') }}</span>{{ exam.duration_minutes }} menit</span>
+      <form action="/student/exam/start" method="POST">
+        <input type="hidden" name="exam_id" value="{{ exam.id }}">
+        <button type="submit" class="btn btn-primary">Mulai {{ icon('arrow-right') }}</button>
+      </form>
     </div>
-    {% endfor %}
-</div>
+  </article>
+  {% else %}
+  <div class="empty"><strong>Tidak ada ujian aktif</strong>Cek lagi nanti, atau lihat peringkat kelasmu.</div>
+  {% endfor %}
+</section>
 {% endblock %}

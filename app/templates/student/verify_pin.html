@@ -1,20 +1,20 @@
-<!-- app/templates/student/verify_pin.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verifikasi PIN - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen flex items-center justify-center">
-    <div class="bg-slate-800 p-8 rounded-lg shadow-lg w-96 text-center">
-        <h1 class="text-xl font-bold text-cyan-400 mb-4">Keamanan Verifikasi</h1>
-        <p class="mb-6 text-sm">Masukkan PIN 4 digit Anda:</p>
-        <form action="/auth/student/verify" method="POST">
-            <input type="hidden" name="student_id" value="{{ student_id }}">
-            <input type="password" name="pin" maxlength="4" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 text-center text-2xl tracking-widest outline-none mb-4" placeholder="••••">
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded">Masuk</button>
-        </form>
-    </div>
-</body>
-</html>
+{# Login siswa langkah 2: PIN. Field student_id dan pin dibaca POST /auth/student/verify #}
+{% extends "layouts/auth.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}PIN · Informatika World{% endblock %}
+{% block foot %}Lupa PIN? Minta ke gurumu.{% endblock %}
+{% block content %}
+<a href="/login/siswa" class="back-link">{{ icon('arrow-left') }}Bukan kamu? Cari nama lain</a>
+<p class="eyebrow">Ruang siswa · langkah 2 dari 2</p>
+<h1 class="h-display">Halo, <em>{{ student_name|e }}</em></h1>
+<p class="lead">Masukkan PIN 4 angka dari gurumu.</p>
+
+<form action="/auth/student/verify" method="POST" class="mt-10 flex flex-col gap-5 max-w-xs">
+  <input type="hidden" name="student_id" value="{{ student_id }}">
+  <label class="field">
+    <span class="label">PIN</span>
+    <input type="password" name="pin" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="one-time-code" required autofocus class="input input-pin" title="PIN berisi 4 angka">
+  </label>
+  <button type="submit" class="btn btn-primary">Masuk {{ icon('arrow-right') }}</button>
+</form>
+{% endblock %}

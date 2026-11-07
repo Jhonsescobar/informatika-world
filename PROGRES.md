@@ -51,10 +51,23 @@ Ceklis ini diperbarui setiap selesai satu langkah. `[x]` = selesai, `[ ]` = belu
 - [ ] Jalankan `python ganti_tahun_ajaran.py` di laptop (PostgreSQL)
 - [ ] Commit & push
 
+## Tahap 3c — Desain ulang & hapus siswa (7 Nov 2026)
+
+- [x] Sistem desain bersama: 3 layout Jinja, `iw.css`, ikon SVG, logo baru (tanpa emoji)
+- [x] Font diganti ke pasangan minimalis: Raleway Bold (judul) + Montserrat (isi); dua font saja
+- [x] Latar 3D Three.js: globe jaringan (login & guru), aliran data (siswa); redup di HP, diam bila "kurangi gerak"
+- [x] 23 halaman ditulis ulang; copy dibersihkan dari gaya AI
+- [x] Tombol **Keluar** (sebelumnya tidak ada logout sama sekali)
+- [x] Hapus siswa permanen: halaman konfirmasi + jumlah data terkait + ketik nama + transaksi tunggal
+- [x] Bug: login PIN rusak bila driver diganti ke psycopg 3 (`student_id` teks) — diperbaiki
+- [x] Bug: link "Hasil" di halaman Ujian tercetak di luar kartu — dirapikan
+- [x] Diuji di PostgreSQL 16 + psycopg2 + migrasi Alembic asli: 0 form berubah di 19 halaman, 24/24 uji alur lulus, tanpa error console, tanpa scroll menyamping di 3 ukuran layar
+- [ ] Commit & push
+
 ## Tahap 4 — Perapihan struktur folder (berikutnya)
 
-- [ ] Template lama yang tidak dipakai lagi: `teacher/login.html`, `student/login.html`, `teacher/dashboard.html`
-- [ ] Folder kosong `app/templates/components/`
+- [x] Template lama `teacher/login.html`, `student/login.html`, `teacher/dashboard.html`, `student/base.html` dipindah ke `_to_delete/`
+- [ ] Folder kosong `app/templates/components/` (hapus manual)
 - [ ] Script lepas `app/add_student.py`, `app/add_achievements.py`, `seed_rombel.py`: satukan ke folder `scripts/`
 - [ ] `teacher.py` (±500 baris) dipecah per fitur
 - [ ] Hapus isi `_to_delete/` setelah dicek

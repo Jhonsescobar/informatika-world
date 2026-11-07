@@ -1,32 +1,22 @@
-<!-- app/templates/student/achievements.html -->
-{% extends "student/base.html" %}
-
-{% block title %}Achievements - INFORMATIKA WORLD{% endblock %}
-
+{% extends "layouts/student.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}Lencana · Informatika World{% endblock %}
+{% set dapat = all_achievements|selectattr('id', 'in', my_award_ids)|list|length %}
+{% block eyebrow %}Lencana{% endblock %}
+{% block heading %}{{ dapat }} dari {{ all_achievements|length }} <em>terbuka</em>{% endblock %}
+{% block lead %}<p class="lead">Lencana terbuka otomatis saat kamu memenuhi syaratnya.</p>{% endblock %}
 {% block content %}
-<div class="mt-2 mb-6">
-    <h1 class="text-2xl font-bold text-yellow-400">🎖️ Koleksi Achievement</h1>
-</div>
-
-<div class="grid grid-cols-2 gap-4">
-    {% for ach in all_achievements %}
-    
-    {% if ach.id in my_award_ids %}
-        <!-- Unlocked -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-yellow-500 shadow-lg text-center">
-            <div class="text-4xl mb-2">{{ ach.icon }}</div>
-            <h3 class="font-bold text-yellow-400 text-sm">{{ ach.name }}</h3>
-            <span class="inline-block mt-2 text-[10px] bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full">Unlocked!</span>
-        </div>
-    {% else %}
-        <!-- Locked -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center opacity-40">
-            <div class="text-4xl mb-2 grayscale">{{ ach.icon }}</div>
-            <h3 class="font-bold text-slate-400 text-sm">{{ ach.name }}</h3>
-            <span class="inline-block mt-2 text-[10px] bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">🔒 Locked</span>
-        </div>
-    {% endif %}
-    
-    {% endfor %}
-</div>
+<section class="grid grid-cols-2 sm:grid-cols-3 gap-4" aria-label="Daftar lencana">
+  {% for ach in all_achievements %}
+  {% set terbuka = ach.id in my_award_ids %}
+  <article class="panel text-center flex flex-col items-center gap-2 {{ 'panel-accent' if terbuka else '' }}" {% if not terbuka %}style="opacity:.5"{% endif %}>
+    <div class="text-4xl leading-none" {% if not terbuka %}style="filter:grayscale(1)"{% endif %} aria-hidden="true">{{ ach.icon }}</div>
+    <h2 class="mt-2 font-semibold text-white text-sm">{{ ach.name }}</h2>
+    {% if ach.description %}<p class="text-xs muted">{{ ach.description }}</p>{% endif %}
+    {% if terbuka %}<span class="chip chip-amber mt-1">Terbuka</span>{% else %}<span class="chip mt-1"><span class="w-3 h-3">{{ icon('lock') }}</span>Terkunci</span>{% endif %}
+  </article>
+  {% else %}
+  <div class="empty col-span-full">Belum ada lencana.</div>
+  {% endfor %}
+</section>
 {% endblock %}

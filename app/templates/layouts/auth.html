@@ -1,0 +1,16 @@
+{% extends "layouts/base.html" %}
+{% from "layouts/icons.html" import icon, brand %}
+{% block body %}
+<div class="auth">
+  <div class="auth-col">
+    {{ brand('/login') }}
+    <main class="auth-body">
+      {% block content %}{% endblock %}
+    </main>
+    <p class="auth-foot">{% block foot %}SMP · Kelas VII, VIII, IX{% endblock %}</p>
+  </div>
+  <div class="auth-aside" aria-hidden="true">
+    <p class="auth-caption">{% block caption %}Materi, bank soal, ujian, dan nilai Informatika dalam satu tempat.{% endblock %}</p>
+  </div>
+</div>
+{% endblock %}

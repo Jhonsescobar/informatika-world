@@ -1,0 +1,54 @@
+{# Konfirmasi hapus permanen. Guru harus mengetik ulang nama siswa (dicek lagi di server). #}
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'students' %}
+{% set total = counts.values()|sum %}
+{% block title %}Hapus {{ student.name|e }} · Informatika World{% endblock %}
+{% block back %}<a href="/teacher/students" class="back-link">{{ icon('arrow-left') }}Batal, kembali ke daftar siswa</a>{% endblock %}
+{% block eyebrow %}Hapus permanen{% endblock %}
+{% block heading %}Hapus <em>{{ student.name|e }}</em>?{% endblock %}
+{% block lead %}<p class="lead">Akun dan semua data siswa ini dihapus dari database. Tindakan ini tidak bisa dibatalkan.</p>{% endblock %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+  <section class="panel" aria-labelledby="judul-data">
+    <h2 class="h-section" id="judul-data">Data yang ikut terhapus</h2>
+    <p class="panel-note">Hasil ujian siswa ini juga hilang dari rekap nilai dan analitik soal.</p>
+    <table class="table mt-4">
+      <tbody>
+        <tr><td class="text-white">Akun siswa{% if student.nipd %} <span class="mono dim">· NIPD {{ student.nipd|e }}</span>{% endif %}</td><td class="num">1</td></tr>
+        {% for label, n in counts.items() %}
+        <tr><td class="{{ 'text-white' if n else 'dim' }}">{{ label }}</td><td class="num {{ '' if n else 'dim' }}">{{ n }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if student.is_active %}
+    <div class="notice mt-5">{{ icon('info') }}<span>Siswa hanya pindah sementara atau masih mungkin kembali? Pilih <strong>Nonaktifkan</strong> di daftar siswa. Datanya tetap tersimpan dan ia tidak muncul di pencarian login.</span></div>
+    {% endif %}
+  </section>
+
+  <section class="panel panel-danger" aria-labelledby="judul-konfirmasi">
+    <h2 class="h-section" id="judul-konfirmasi">Konfirmasi</h2>
+    {% if error %}
+    <div class="notice notice-danger mt-4" role="alert">{{ icon('alert') }}<span>Nama yang diketik tidak sama. Tidak ada data yang dihapus.</span></div>
+    {% endif %}
+    <form action="/teacher/students/{{ student.id }}/delete" method="POST" class="mt-5 flex flex-col gap-4">
+      <label class="field">
+        <span class="label">Ketik nama siswa persis</span>
+        <span class="mono text-sm text-white select-all">{{ student.name|e }}</span>
+        <input type="text" name="confirm_name" required autocomplete="off" spellcheck="false" class="input" id="konfirmasi-nama" data-expected="{{ student.name|e }}">
+      </label>
+      <button type="submit" class="btn btn-danger" id="tombol-hapus" disabled>{{ icon('trash') }}Hapus permanen {{ total + 1 }} data</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Tombol hapus baru aktif setelah nama diketik persis (server tetap memeriksa ulang)
+  const isian = document.getElementById('konfirmasi-nama');
+  const tombol = document.getElementById('tombol-hapus');
+  isian.addEventListener('input', () => {
+    tombol.disabled = isian.value.trim() !== isian.dataset.expected.trim();
+  });
+</script>
+{% endblock %}

@@ -1,50 +1,46 @@
-<!-- app/templates/student/take_exam.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kerjakan Ujian - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
-    <nav class="bg-red-900 p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
-        <h1 class="text-lg font-bold text-white">⚙️ {{ exam.title }}</h1>
-        <div id="timer" class="text-white font-mono text-lg"></div>
-    </nav>
-
-    <form action="/student/exam/submit/{{ session.id }}" method="POST" class="container mx-auto p-4 space-y-6">
-        {% for item in exam_data %}
-        <div class="bg-slate-800 p-5 rounded-lg shadow-md border border-slate-700">
-            <p class="font-bold mb-4 text-indigo-300">{{ loop.index }}. {{ item.question.text }}</p>
-            <div class="space-y-3">
-                {% for opt in item.options %}
-                <label class="flex items-center gap-3 p-3 bg-slate-700 rounded-lg cursor-pointer hover:bg-slate-600 transition">
-                    <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required class="w-4 h-4 text-cyan-500">
-                    <span>{{ opt.text }}</span>
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-        
-        <div class="text-center py-8">
-            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg transition">
-                SELESAI & KIRIM JAWABAN
-            </button>
-        </div>
-    </form>
-
-    <script>
-        // Timer sederhana (Hanya display, validasi utama di Server)
-        const expires = new Date("{{ expires_at }}").getTime();
-        const x = setInterval(function() {
-            const now = new Date().getTime();
-            const d = expires - now;
-            if (d < 0) { clearInterval(x); document.getElementById('timer').innerText = "WAKTU HABIS"; return; }
-            const m = Math.floor((d % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((d % (1000 * 60)) / 1000);
-            document.getElementById('timer').innerText = m + "m " + s + "s ";
-        }, 1000);
-    </script>
-</body>
-</html>
+{# Halaman mengerjakan ujian: tanpa menu bawah supaya siswa tidak keluar tanpa sengaja #}
+{% extends "layouts/base.html" %}
+{% block title %}{{ exam.title }} · Ujian{% endblock %}
+{% block scene %}stream{% endblock %}
+{% block body %}
+<div class="exam-bar">
+  <h1 class="exam-title">{{ exam.title }}</h1>
+  <div id="timer" class="timer" role="timer" aria-live="off">--:--</div>
+</div>
+<form action="/student/exam/submit/{{ session.id }}" method="POST" class="above-scene mx-auto w-full max-w-2xl px-4 py-8 flex flex-col gap-5">
+  {% for item in exam_data %}
+  <fieldset class="panel">
+    <legend class="sr-only">Soal {{ loop.index }}</legend>
+    <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}</p>
+    <p class="q-text">{{ item.question.text }}</p>
+    {% for opt in item.options %}
+    <label class="option">
+      <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required>
+      <span>{{ opt.text }}</span>
+    </label>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <div class="py-6 text-center">
+    <button type="submit" class="btn btn-primary" style="min-height:52px;padding:0 28px" onclick="return confirm('Kirim semua jawaban sekarang? Jawaban tidak bisa diubah lagi.');">Kirim jawaban</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Hitung mundur hanya tampilan; batas waktu sebenarnya diperiksa server
+  const expires = new Date("{{ expires_at }}").getTime();
+  const timer = document.getElementById('timer');
+  const pad = n => String(n).padStart(2, '0');
+  function tick() {
+    const d = expires - Date.now();
+    if (isNaN(d)) { timer.textContent = '--:--'; return; }
+    if (d <= 0) { timer.textContent = 'Waktu habis'; timer.classList.add('is-over'); clearInterval(id); return; }
+    const m = Math.floor(d / 60000);
+    const s = Math.floor((d % 60000) / 1000);
+    timer.textContent = pad(m) + ':' + pad(s);
+  }
+  const id = setInterval(tick, 1000);
+  tick();
+</script>
+{% endblock %}

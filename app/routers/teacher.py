@@ -25,6 +25,7 @@ from app.models.student import Student
 from app.utils.security import hash_password
 
 from app.models.user import User
+from app.models.achievement import StudentAchievement
 from app.models.material import Material
 # Mengimpor model Materi
 
@@ -475,7 +476,8 @@ async def list_students(request: Request, db: Session = Depends(get_db), user=De
     # Daftar rombel diambil dari database (bukan ID yang ditulis manual di template)
     rombels = db.query(Rombel, SchoolClass).join(SchoolClass, Rombel.class_id == SchoolClass.id).order_by(SchoolClass.id, Rombel.rombel_name).all()
     template = templates_env.get_template("teacher/students.html")
-    html_content = template.render(request=request, students=students, rombels=rombels, user=user)
+    html_content = template.render(request=request, students=students, rombels=rombels,
+                                   deleted=request.query_params.get("deleted") == "1", user=user)
     return HTMLResponse(content=html_content)
 
 # --- KELUARKAN SISWA DARI ROMBEL ---
@@ -525,6 +527,51 @@ async def delete_component(comp_id: int, db: Session = Depends(get_db), user=Dep
         db.delete(comp)
         db.commit()
     return RedirectResponse(url="/teacher/grades", status_code=303)
+
+# --- HAPUS SISWA PERMANEN ---
+# Menghapus siswa beserta SEMUA datanya: keanggotaan rombel, sesi & jawaban ujian,
+# nilai, dan achievement. Guru wajib mengetik ulang nama siswa sebagai konfirmasi.
+
+def data_terkait_siswa(db: Session, student_id: int):
+    # Query per tabel yang menyimpan data milik siswa (dipakai untuk menghitung & menghapus)
+    sesi_ids = [s.id for s in db.query(ExamSession.id).filter(ExamSession.student_id == student_id)]
+    return {
+        "Keanggotaan rombel": db.query(Enrollment).filter(Enrollment.student_id == student_id),
+        "Jawaban ujian": db.query(ExamAnswer).filter(ExamAnswer.session_id.in_(sesi_ids)),
+        "Sesi ujian": db.query(ExamSession).filter(ExamSession.student_id == student_id),
+        "Nilai": db.query(Score).filter(Score.student_id == student_id),
+        "Achievement": db.query(StudentAchievement).filter(StudentAchievement.student_id == student_id),
+    }
+
+@router.get("/students/{student_id}/delete", response_class=HTMLResponse)
+async def confirm_delete_student(student_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        return RedirectResponse(url="/teacher/students", status_code=303)
+    counts = {label: q.count() for label, q in data_terkait_siswa(db, student_id).items()}
+    template = templates_env.get_template("teacher/student_delete.html")
+    html_content = template.render(request=request, student=student, counts=counts,
+                                   error=request.query_params.get("error"), user=user)
+    return HTMLResponse(content=html_content)
+
+@router.post("/students/{student_id}/delete")
+async def delete_student(student_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        return RedirectResponse(url="/teacher/students", status_code=303)
+    form = await request.form()
+    if (form.get("confirm_name") or "").strip() != student.name.strip():
+        return RedirectResponse(url=f"/teacher/students/{student_id}/delete?error=nama", status_code=303)
+    try:
+        # Urutan penting: anak dulu (jawaban) baru induk (sesi, siswa), semuanya dalam satu transaksi
+        for q in data_terkait_siswa(db, student_id).values():
+            q.delete(synchronize_session=False)
+        db.delete(student)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return RedirectResponse(url="/teacher/students?deleted=1", status_code=303)
 
 # --- TOGGLE ACTIVE SISWA (Soft Delete) ---
 @router.post("/students/{student_id}/toggle-active")

@@ -117,8 +117,10 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
     student_id = form_data.get("student_id")          # id siswa (tersembunyi di form)
     pin = form_data.get("pin")                        # PIN yang diketik siswa
 
-    student = db.query(Student).filter(Student.id == student_id).first()   # cari siswa berdasarkan id
-    if not student or not verify_password(pin, student.pin_hash):          # siswa tidak ada / PIN salah
+    if not str(student_id or "").isdigit():           # id dari form berupa teks: pastikan angka
+        raise HTTPException(status_code=400, detail="PIN salah")
+    student = db.query(Student).filter(Student.id == int(student_id)).first()   # cari siswa berdasarkan id
+    if not student or not verify_password(pin or "", student.pin_hash):          # siswa tidak ada / PIN salah
         raise HTTPException(status_code=400, detail="PIN salah")
 
     token_data = {"sub": str(student.id), "role": "student"}   # isi token: id siswa + role student
@@ -134,6 +136,14 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
 
 # Alamat lama /student/login sekarang diarahkan ke halaman baru /login/siswa
 # (supaya link/bookmark lama tetap jalan, tidak 404)
+# Keluar: hapus cookie login lalu kembali ke halaman pilih login.
+# POST (bukan GET) supaya tidak bisa dipicu lewat link/gambar dari situs lain.
+@router.post("/logout")
+async def logout():
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie("access_token")
+    return response
+
 @router.get("/student/login")
 async def student_login_lama():
     return RedirectResponse(url="/login/siswa", status_code=303)

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#050b0b">
+  <title>{% block title %}Informatika World{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/icons/mark.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Raleway:wght@600;700&display=swap">
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <link rel="stylesheet" href="/static/css/iw.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <canvas id="iw-scene" data-variant="{% block scene %}globe{% endblock %}" data-anchor="{% block anchor %}right{% endblock %}" aria-hidden="true"></canvas>
+  {% block body %}{% endblock %}
+  <script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+  <script type="module" src="/static/js/iw-scene.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

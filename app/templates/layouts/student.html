@@ -1,0 +1,31 @@
+{% extends "layouts/base.html" %}
+{% from "layouts/icons.html" import icon, brand %}
+{% block scene %}stream{% endblock %}
+{% set dock = [
+  ('home', '/student/dashboard', 'Beranda', 'home'),
+  ('leaderboard', '/student/leaderboard', 'Peringkat', 'trophy'),
+  ('achievements', '/student/achievements', 'Lencana', 'badge'),
+] %}
+{% block body %}
+<header class="s-top">
+  {{ brand('/student/dashboard') }}
+  <form action="/logout" method="POST">
+    <button type="submit" class="btn btn-ghost btn-sm">{{ icon('logout') }}Keluar</button>
+  </form>
+</header>
+<main class="s-main" id="konten">
+  <header class="page-head">
+    <p class="eyebrow">{% block eyebrow %}{% endblock %}</p>
+    <h1 class="h-display">{% block heading %}{% endblock %}</h1>
+    {% block lead %}{% endblock %}
+  </header>
+  <div class="s-content">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+<nav class="dock" aria-label="Menu siswa">
+  {% for key, href, label, ic in dock %}
+  <a href="{{ href }}" class="dock-link{{ ' is-active' if active_page == key }}"{% if active_page == key %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+  {% endfor %}
+</nav>
+{% endblock %}

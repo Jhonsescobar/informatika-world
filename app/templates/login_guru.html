@@ -1,117 +1,22 @@
-<!DOCTYPE html>
-<!-- ============================================================
-     FILE 2: app/templates/login_guru.html
-     Form login GURU (Email + Password)
-     PENTING: cek nama field di bawah (name="email" & name="password")
-     harus SAMA dengan yang dibaca route POST /auth/teacher/login
-     ============================================================ -->
-<html lang="id">
-<head>
-  <meta charset="UTF-8">  <!-- mendukung huruf Indonesia -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <!-- responsif di HP -->
-  <title>Login Guru — INFORMATIKA WORLD</title>  <!-- judul tab browser -->
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8C%8D%3C/text%3E%3C/svg%3E">
-  <script src="https://cdn.tailwindcss.com"></script>  <!-- Tailwind CSS via CDN -->
+{# Form login guru. name="email" dan name="password" dibaca oleh POST /auth/teacher/login #}
+{% extends "layouts/auth.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}Login Guru · Informatika World{% endblock %}
+{% block content %}
+<a href="/login" class="back-link">{{ icon('arrow-left') }}Pilihan login</a>
+<p class="eyebrow">Ruang guru</p>
+<h1 class="h-display">Masuk sebagai <em>guru</em></h1>
+<p class="lead">Pakai email dan password akun guru.</p>
 
-  <style>
-  /* ================= KUMPULAN EFEK GLOW & ANIMASI ================= */
-
-  /* ---- Kartu & tombol ---- */
-  .glow-card {                                  /* kartu dasar */
-    transition: all .3s ease;                   /* animasi halus semua perubahan */
-    border: 1px solid rgba(255,255,255,.08);    /* garis tepi kaca tipis */
-  }
-  .glow-card:hover {                            /* saat mouse diarahkan */
-    transform: translateY(-6px) scale(1.02);    /* naik + membesar sedikit */
-    border-color: rgba(56,189,248,.6);          /* garis tepi berubah biru */
-    box-shadow: 0 0 28px rgba(56,189,248,.35),  /* glow luar */
-                inset 0 0 22px rgba(56,189,248,.07); /* pantulan di dalam */
-  }
-  .glow-card:active {                           /* saat diklik */
-    transform: scale(.97);                      /* mengecil sesaat */
-  }
-  .glow-card .ikon-bulat {                      /* lingkaran pembungkus ikon */
-    transition: all .3s ease;                   /* ikut beranimasi */
-  }
-  .glow-card:hover .ikon-bulat {                /* ikon ikut bersinar */
-    box-shadow: 0 0 18px rgba(56,189,248,.55);  /* glow pada lingkaran ikon */
-    transform: rotate(-6deg);                   /* miring sedikit */
-  }
-  .btn-masuk {                                  /* tombol submit login */
-    transition: all .25s ease;                  /* animasi halus */
-  }
-  .btn-masuk:hover {                            /* saat mouse diarahkan */
-    box-shadow: 0 0 22px rgba(56,189,248,.65);  /* glow biru */
-    transform: translateY(-2px);                /* naik sedikit */
-    filter: brightness(1.1);                    /* lebih terang */
-  }
-  .btn-masuk:active {                           /* saat diklik */
-    transform: scale(.96);                      /* mengecil sesaat */
-  }
-
-  /* ---- Kotak isian ---- */
-  .input-glow {                                 /* gaya kotak isian */
-    transition: all .25s ease;                  /* animasi halus */
-  }
-  .input-glow:focus {                           /* saat jadi fokus */
-    border-color: #38bdf8;                      /* garis tepi biru */
-    box-shadow: 0 0 0 3px rgba(56,189,248,.25), /* cincin cahaya */
-                0 0 14px rgba(56,189,248,.30);  /* glow lembut */
-    outline: none;                              /* hapus garis bawaan */
-  }
-
-  /* ---- Judul bersinar ---- */
-  .glow-text {                                  /* teks bersinar */
-    text-shadow: 0 0 18px rgba(56,189,248,.55); /* cahaya biru */
-  }
-  </style>
-</head>
-
-<body class="bg-slate-950 text-slate-200 antialiased min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-  <!-- dekorasi latar: bola cahaya biru blur -->
-  <div class="absolute -top-24 -right-24 w-72 h-72 bg-sky-500/15 rounded-full blur-3xl"></div>
-
-  <main class="w-full max-w-sm relative">
-    <!-- tombol kembali ke halaman pilihan -->
-    <a href="/login" class="inline-flex items-center gap-2 text-slate-400 hover:text-sky-400 text-sm mb-6 transition">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-      Kembali ke pilihan login
-    </a>
-
-    <!-- kartu form login -->
-    <div class="glow-card bg-slate-900/80 backdrop-blur rounded-2xl p-7">
-      <div class="text-center mb-6">
-        <div class="ikon-bulat mx-auto w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center justify-center mb-3">
-          <!-- ikon tas kerja (guru) -->
-          <svg class="w-6 h-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v1m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-        </div>
-        <h1 class="text-xl font-bold text-white">Login Guru</h1>
-        <p class="text-slate-400 text-xs mt-1">Gunakan email sekolah Anda</p>
-      </div>
-
-      <!-- =========================================================
-           FORM LOGIN GURU
-           action="/auth/teacher/login"  -> route POST yang sudah ada
-           name="email" & name="password" -> samakan dengan route itu
-           ========================================================= -->
-      <form action="/auth/teacher/login" method="post" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5" for="email">Email</label>
-          <input id="email" name="email" type="email" required placeholder="guru@informatika.world"
-                 class="input-glow w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5" for="password">Password</label>
-          <input id="password" name="password" type="password" required placeholder="••••••••"
-                 class="input-glow w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
-        </div>
-        <button type="submit" class="btn-masuk w-full bg-gradient-to-r from-sky-500 to-blue-500 text-white font-semibold rounded-xl py-3 text-sm mt-2">
-          Masuk
-        </button>
-      </form>
-    </div>
-  </main>
-</body>
-</html>
+<form action="/auth/teacher/login" method="post" class="mt-10 flex flex-col gap-5 max-w-sm">
+  <label class="field">
+    <span class="label">Email</span>
+    <input id="email" name="email" type="email" required autocomplete="username" placeholder="guru@sekolah.sch.id" class="input">
+  </label>
+  <label class="field">
+    <span class="label">Password</span>
+    <input id="password" name="password" type="password" required autocomplete="current-password" class="input">
+  </label>
+  <button type="submit" class="btn btn-primary mt-2">Masuk {{ icon('arrow-right') }}</button>
+</form>
+{% endblock %}

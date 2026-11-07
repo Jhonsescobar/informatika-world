@@ -1,26 +1,29 @@
-<!-- app/templates/student/exam_result.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hasil Ujian - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen flex items-center justify-center">
-    <div class="bg-slate-800 p-8 rounded-lg shadow-lg w-96 text-center">
-        <h1 class="text-2xl font-bold text-cyan-400 mb-2">✅ Ujian Selesai</h1>
-        <p class="text-slate-400 mb-6">Skor Anda:</p>
-        <div class="text-6xl font-bold text-indigo-400 mb-8">{{ session.score }}</div>
-        
-        <div class="text-left space-y-2 mb-6">
-            {% for ans in answers %}
-            <div class="{{ 'text-green-400' if ans.is_correct else 'text-red-400' }}">
-                {{ '✅ Benar' if ans.is_correct else '❌ Salah' }}
-            </div>
-            {% endfor %}
-        </div>
-        
-        <a href="/student/dashboard" class="block bg-slate-700 hover:bg-slate-600 p-3 rounded transition">Kembali ke Dashboard</a>
-    </div>
-</body>
-</html>
+{% extends "layouts/base.html" %}
+{% from "layouts/icons.html" import icon, brand %}
+{% block title %}Hasil Ujian · Informatika World{% endblock %}
+{% block scene %}stream{% endblock %}
+{% set benar = answers|selectattr('is_correct')|list|length %}
+{% block body %}
+<div class="auth">
+  <div class="auth-col">
+    {{ brand('/student/dashboard') }}
+    <main class="auth-body">
+      <p class="eyebrow">Ujian selesai</p>
+      <p class="score-big mt-6">{{ session.score }}</p>
+      <p class="lead">Skor kamu. {{ benar }} dari {{ answers|length }} soal benar.</p>
+      <ol class="mt-8 grid grid-cols-5 sm:grid-cols-8 gap-2 max-w-md" aria-label="Rincian jawaban">
+        {% for ans in answers %}
+        <li class="flex flex-col items-center gap-1 rounded-xl py-2" style="border:1px solid {{ 'rgba(94,230,160,.35)' if ans.is_correct else 'rgba(255,114,98,.35)' }};background:{{ 'rgba(94,230,160,.08)' if ans.is_correct else 'var(--danger-soft)' }}">
+          <span class="mono text-xs dim">{{ loop.index }}</span>
+          <span class="w-4 h-4" style="color:{{ 'var(--ok)' if ans.is_correct else 'var(--danger)' }}">{{ icon('check') if ans.is_correct else icon('x') }}</span>
+          <span class="sr-only">{{ 'benar' if ans.is_correct else 'salah' }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      <a href="/student/dashboard" class="btn btn-primary mt-10">Kembali ke beranda {{ icon('arrow-right') }}</a>
+    </main>
+    <p class="auth-foot">Nilai tersimpan otomatis.</p>
+  </div>
+  <div class="auth-aside" aria-hidden="true"></div>
+</div>
+{% endblock %}

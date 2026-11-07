@@ -1,66 +1,64 @@
-<!-- app/templates/teacher/grades.html -->
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola Nilai - INFORMATIKA WORLD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen">
-    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
-        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
-        <div class="flex gap-4 text-sm">
-            <a href="/teacher/exams" class="text-indigo-400 hover:underline">📝 Ujian</a>
-            <span class="text-white font-bold">⚖️ Nilai & Bobot</span>
-        </div>
-    </nav>
-    <div class="container mx-auto p-6">
-        <h2 class="text-2xl font-bold mb-6 border-b border-slate-700 pb-2">⚖️ Komponen Nilai & Bobot</h2>
-        
-        <div class="bg-slate-800 p-6 rounded-lg mb-8 shadow-md border border-slate-700">
-            <h3 class="text-lg font-semibold text-indigo-400 mb-4">Tambah Komponen Nilai Baru</h3>
-            <form action="/teacher/grades/components/create" method="POST" class="flex gap-4 items-end">
-                <div class="flex-1">
-                    <label class="block text-sm mb-1">Nama (Misal: Formatif 1)</label>
-                    <input type="text" name="name" required class="w-full p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Kelas</label>
-                    <select name="class_target" required class="p-2 bg-slate-700 rounded border border-slate-600">
-                        <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm mb-1">Bobot (%)</label>
-                    <input type="number" name="weight" min="1" max="100" required class="w-20 p-2 bg-slate-700 rounded border border-slate-600 outline-none">
-                </div>
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Tambah</button>
-            </form>
-        </div>
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'grades' %}
+{% block title %}Nilai · Informatika World{% endblock %}
+{% block eyebrow %}Nilai & bobot{% endblock %}
+{% block heading %}Komponen <em>nilai akhir</em>{% endblock %}
+{% block lead %}<p class="lead">Nilai akhir = jumlah (nilai komponen × bobot). Pastikan total bobot tiap kelas 100%.</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="grid gap-4 sm:grid-cols-3" aria-label="Rekap per kelas">
+    {% for kelas in ['VII', 'VIII', 'IX'] %}
+    {% set total = components|selectattr('class_target', 'equalto', kelas)|sum(attribute='weight') %}
+    <a href="/teacher/grades/class/{{ kelas }}" class="panel stat group" style="text-decoration:none">
+      <span class="flex items-center justify-between">
+        <span class="stat-label">Kelas {{ kelas }}</span>
+        <span class="link-action is-teal">Rekap {{ icon('arrow-right') }}</span>
+      </span>
+      <span>
+        <span class="stat-value">{{ total }}<span class="text-2xl dim">%</span></span>
+        <span class="block mt-2 text-sm {{ 'muted' if total == 100 else '' }}" {% if total != 100 %}style="color:var(--amber)"{% endif %}>{{ 'Bobot lengkap' if total == 100 else 'Total bobot belum 100%' }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </section>
 
-        <div class="space-y-4 mb-8">
+  <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] items-start">
+    <section class="panel panel-tight" aria-label="Daftar komponen">
+      <div class="rows">
         {% for comp in components %}
-        <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-cyan-500 shadow flex justify-between items-center">
-            <div>
-                <h4 class="font-bold">{{ comp.name }}</h4>
-                <p class="text-sm text-slate-400">Kelas {{ comp.class_target }}</p>
-            </div>
-            <div class="flex items-center gap-4">
-                <span class="text-lg font-bold text-cyan-400">{{ comp.weight }}%</span>
-                <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Yakin hapus komponen ini? Semua nilai terkait akan terhapus!');">
-                    <button type="submit" class="text-sm text-red-500 hover:underline">🗑️ Hapus</button>
-                </form>
-            </div>
+        <div class="row">
+          <div class="row-main">
+            <p class="row-title">{{ comp.name }}</p>
+            <p class="row-meta"><span>Kelas {{ comp.class_target }}</span></p>
+          </div>
+          <span class="mono text-lg text-white">{{ comp.weight }}%</span>
+          <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Hapus komponen ini? Semua nilai di komponen ini ikut terhapus.');">
+            <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
+          </form>
         </div>
+        {% else %}
+        <div class="p-6"><div class="empty"><strong>Belum ada komponen</strong>Contoh: Formatif 1 (20%), Sumatif (40%).</div></div>
         {% endfor %}
-        </div>
+      </div>
+    </section>
 
-        <h3 class="text-lg font-semibold text-indigo-400 mb-4">Lihat Rekap Nilai Akhir</h3>
-        <div class="flex gap-4">
-            <a href="/teacher/grades/class/VII" class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition">Kelas VII</a>
-            <a href="/teacher/grades/class/VIII" class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition">Kelas VIII</a>
-            <a href="/teacher/grades/class/IX" class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition">Kelas IX</a>
+    <section class="panel" aria-labelledby="judul-form">
+      <h2 class="h-section" id="judul-form">Komponen baru</h2>
+      <form action="/teacher/grades/components/create" method="POST" class="mt-5 flex flex-col gap-4">
+        <label class="field"><span class="label">Nama</span>
+          <input type="text" name="name" required class="input" placeholder="cth: Formatif 1"></label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="field"><span class="label">Kelas</span>
+            <select name="class_target" required class="select">
+              <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
+            </select></label>
+          <label class="field"><span class="label">Bobot %</span>
+            <input type="number" name="weight" min="1" max="100" required class="input"></label>
         </div>
-    </div>
-</body>
-</html>
+        <button type="submit" class="btn btn-primary mt-1">Tambah</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
