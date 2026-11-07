@@ -29,14 +29,27 @@ Ceklis ini diperbarui setiap selesai satu langkah. `[x]` = selesai, `[ ]` = belu
 | Komponen nilai | ✅ | ✅ + rekap per tingkat | ❌ | ✅ |
 | Nilai | otomatis dari ujian | ✅ | ❌ input manual | ❌ |
 | Siswa | ✅ massal + PIN | ✅ | ❌ (nama/NIPD/reset PIN) | nonaktifkan saja |
-| Rombel / penempatan siswa | lewat `seed_rombel.py` | ✅ (leaderboard) | ❌ pindah rombel | ❌ |
-| Tahun ajaran / tingkat | lewat seed | — | ❌ | ❌ |
+| Rombel / penempatan siswa | ✅ saat bulk import | ✅ | ❌ pindah rombel | ✅ keluarkan dari rombel |
+| Tahun ajaran / tingkat | lewat script | — | `ganti_tahun_ajaran.py` | ❌ |
 
 ## Tahap 3 — Rapikan Git (7 Nov 2026)
 
 - [x] `.gitattributes` ditambahkan (akhir baris seragam di semua komputer)
 - [x] `.gitignore`: `cloudflared.exe`/`*.exe`, `_to_delete/`, `.pytest_cache/`
-- [ ] Commit per kelompok perubahan & push ke GitHub (dijalankan dari PowerShell)
+- [x] Commit per kelompok perubahan & push ke GitHub (`fc54f9a..b816e56`)
+
+## Tahap 3b — Fitur rombel & tahun ajaran (7 Nov 2026)
+
+- [x] Bug: Bulk Import mengabaikan pilihan "Rombel Tujuan" (siswa tidak masuk rombel). Sekarang langsung terdaftar
+- [x] Bug: dropdown rombel memakai ID tulisan tangan (1–9) yang tidak cocok dengan database. Sekarang diambil dari database
+- [x] Fitur baru: tombol **✕ Keluarkan** di Kelola Siswa (hapus keanggotaan rombel saja; akun & nilai tetap)
+- [x] Script `ganti_tahun_ajaran.py`: 2026/2027 jadi aktif, keanggotaan rombel ikut pindah
+- [x] Diuji: bulk import ke rombel, bulk import tanpa rombel, keluarkan siswa, ganti tahun 2x (tidak dobel), leaderboard 200
+- [x] Fix error `expression 'Student' failed to locate a name` saat menjalankan `ganti_tahun_ajaran.py`: `app/models/__init__.py` kini mendaftarkan semua model
+- [x] Pelajaran error dicatat di `CLAUDE.md` (cara verifikasi + tabel error)
+- [x] Pencarian nama login siswa kembali minimal 3 huruf, hanya siswa aktif; tes `test_student_search_too_short` lulus lagi
+- [ ] Jalankan `python ganti_tahun_ajaran.py` di laptop (PostgreSQL)
+- [ ] Commit & push
 
 ## Tahap 4 — Perapihan struktur folder (berikutnya)
 
@@ -48,6 +61,7 @@ Ceklis ini diperbarui setiap selesai satu langkah. `[x]` = selesai, `[ ]` = belu
 
 ## Keputusan yang menunggu Anda
 
-- [ ] Rombel lama **VII-A** (1 siswa) dari seed awal: hapus, atau pindahkan siswanya ke VII.1?
-- [ ] Tahun ajaran aktif masih **2024/2025**: ganti ke 2026/2027?
-- [ ] Fitur CRUD mana yang paling dibutuhkan dulu (lihat ❌ di matriks)
+- [x] Rombel lama **VII-A**: dikosongkan manual lewat tombol Keluarkan (rombelnya sendiri dihapus di Tahap 4)
+- [x] Tahun ajaran → 2026/2027
+- [x] Pencarian nama login: minimal 3 huruf, siswa aktif saja
+- [ ] Sistem pindah rombel: pindah massal (B) + naik kelas otomatis (C) — menunggu konfirmasi rancangan
