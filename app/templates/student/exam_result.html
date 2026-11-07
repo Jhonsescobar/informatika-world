@@ -8,15 +8,39 @@
   <div class="auth-col">
     {{ brand('/student/dashboard') }}
     <main class="auth-body">
+      {% if session.status == 'expired' and session.score is none %}
+      <p class="eyebrow" style="color:var(--amber)">Waktu habis</p>
+      <h1 class="h-display">Jawaban <em>tidak terkirim</em></h1>
+      <p class="lead">Waktu ujian sudah lewat sebelum jawaban dikirim. Hubungi gurumu kalau ini terjadi karena gangguan.</p>
+      {% else %}
       <p class="eyebrow">Ujian selesai</p>
-      <p class="score-big mt-6">{{ session.score }}</p>
-      <p class="lead">Skor kamu. {{ benar }} dari {{ answers|length }} soal benar.</p>
+      <p class="score-big mt-6">{{ session.score if session.score is not none else 0 }}</p>
+      <p class="lead">Skor kamu ({{ persen }}%). {{ benar }} dari {{ answers|length }} soal yang dijawab benar.</p>
+      {% endif %}
+
+      {% if terakhir and persen < batas %}
+      <div class="panel mt-8 max-w-md">
+        <p class="eyebrow" style="color:var(--amber)">Remedial</p>
+        {% if permintaan and permintaan.status == 'pending' %}
+        <p class="mt-3 text-white">Permintaan remedial terkirim. Tunggu persetujuan gurumu.</p>
+        {% elif permintaan and permintaan.status == 'approved' %}
+        <p class="mt-3 text-white">Gurumu menyetujui remedial. Mulai dari beranda.</p>
+        {% elif boleh_ajukan %}
+        {% if permintaan and permintaan.status == 'rejected' %}<p class="mt-3 text-sm" style="color:var(--danger)">Permintaan sebelumnya ditolak guru.</p>{% endif %}
+        <p class="mt-3 muted">Nilaimu di bawah {{ batas }}. Kamu boleh minta mengulang; guru yang memutuskan. Nilai tertinggi yang dipakai.</p>
+        <form action="/student/exam/remedial/{{ session.id }}" method="POST" class="mt-5">
+          <button type="submit" class="btn btn-primary">{{ icon('refresh') }}Ajukan remedial</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
       <ol class="mt-8 grid grid-cols-5 sm:grid-cols-8 gap-2 max-w-md" aria-label="Rincian jawaban">
         {% for ans in answers %}
-        <li class="flex flex-col items-center gap-1 rounded-xl py-2" style="border:1px solid {{ 'rgba(94,230,160,.35)' if ans.is_correct else 'rgba(255,114,98,.35)' }};background:{{ 'rgba(94,230,160,.08)' if ans.is_correct else 'var(--danger-soft)' }}">
+        {% set sebagian = not ans.is_correct and ans.answer_text is not none and ((ans.manual_points if ans.manual_points is not none else ans.auto_points) or 0) > 0 %}
+        <li class="flex flex-col items-center gap-1 rounded-xl py-2" style="border:1px solid {{ 'rgba(94,230,160,.35)' if ans.is_correct else ('rgba(246,197,107,.4)' if sebagian else 'rgba(255,114,98,.35)') }};background:{{ 'rgba(94,230,160,.08)' if ans.is_correct else ('var(--amber-soft)' if sebagian else 'var(--danger-soft)') }}">
           <span class="mono text-xs dim">{{ loop.index }}</span>
-          <span class="w-4 h-4" style="color:{{ 'var(--ok)' if ans.is_correct else 'var(--danger)' }}">{{ icon('check') if ans.is_correct else icon('x') }}</span>
-          <span class="sr-only">{{ 'benar' if ans.is_correct else 'salah' }}</span>
+          <span class="w-4 h-4" style="color:{{ 'var(--ok)' if ans.is_correct else ('var(--amber)' if sebagian else 'var(--danger)') }}">{{ icon('check') if (ans.is_correct or sebagian) else icon('x') }}</span>
+          <span class="sr-only">{{ 'benar' if ans.is_correct else ('sebagian benar' if sebagian else 'salah') }}</span>
         </li>
         {% endfor %}
       </ol>

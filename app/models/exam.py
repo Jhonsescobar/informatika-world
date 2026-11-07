@@ -1,7 +1,7 @@
 # app/models/exam.py
 # Model untuk tabel Ujian/Formatif
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, Float
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -26,6 +26,9 @@ class Exam(Base):
     # Fitur anti-cheat: Acak urutan soal untuk setiap siswa?
     
     randomize_options = Column(Boolean, default=False)
+
+    # Jumlah soal per siswa, diambil acak dari bank (kosong = semua soal di bank)
+    question_count = Column(Integer, nullable=True)
     # Fitur anti-cheat: Acak urutan opsi A/B/C/D untuk setiap siswa?
     
     is_published = Column(Boolean, default=False)
@@ -59,7 +62,31 @@ class ExamSession(Base):
     # Nilai akhir (dihitung di backend)
     
     status = Column(String, default="active")
+
+    # Soal yang didapat siswa ini (id dipisah koma, urut tampil); kosong = semua soal bank
+    question_ids = Column(Text, nullable=True)
     # Status: "active" (sedang dikerjakan), "completed" (sudah submit), "expired" (waktu habis)
+
+class RemedialRequest(Base):
+    __tablename__ = "remedial_requests"
+    # Permintaan mengulang ujian dari siswa (nilai < 60%), harus disetujui guru
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    exam_id = Column(Integer, ForeignKey("exams.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("exam_sessions.id"), nullable=False)
+    status = Column(String, nullable=False, default="pending")  # pending / approved / rejected / used
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ExamViolation(Base):
+    __tablename__ = "exam_violations"
+    # Catatan anti-cheat: siswa pindah tab, keluar layar penuh, mencoba salin/screenshot, dst.
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("exam_sessions.id"), nullable=False, index=True)
+    kind = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class ExamAnswer(Base):
     __tablename__ = "exam_answers"
@@ -73,4 +100,22 @@ class ExamAnswer(Base):
     # Opsi mana yang dipilih siswa (berdasarkan ID, BUKAN huruf A/B/C/D)
     
     is_correct = Column(Boolean, default=False)
+
+    # Khusus esai
+    answer_text = Column(Text, nullable=True)       # jawaban siswa
+    similarity = Column(Float, nullable=True)       # kemiripan dengan kunci (0-1)
+    auto_points = Column(Float, nullable=True)      # poin hasil penilaian otomatis
+    manual_points = Column(Float, nullable=True)    # poin koreksi guru (menggantikan otomatis)
+
+
+class ExamEvent(Base):
+    __tablename__ = "exam_events"
+    # Log aktivitas siswa selama ujian: soal dilihat, pilih / ganti jawaban, ketik esai, mulai, kirim
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("exam_sessions.id"), nullable=False, index=True)
+    kind = Column(String, nullable=False)
+    question_id = Column(Integer, nullable=True)
+    option_id = Column(Integer, nullable=True)
+    detail = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Apakah jawaban ini benar? (Dievaluasi saat submit)

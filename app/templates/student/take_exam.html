@@ -1,32 +1,59 @@
-{# Halaman mengerjakan ujian: tanpa menu bawah supaya siswa tidak keluar tanpa sengaja #}
+{# Halaman mengerjakan ujian. Anti-cheat: layar penuh, deteksi keluar halaman, watermark, blok salin.
+   Tanpa menu bawah supaya siswa tidak keluar tanpa sengaja. #}
 {% extends "layouts/base.html" %}
+{% from "layouts/guard.html" import watermark, shield %}
 {% block title %}{{ exam.title }} · Ujian{% endblock %}
 {% block scene %}stream{% endblock %}
 {% block body %}
-<div class="exam-bar">
-  <h1 class="exam-title">{{ exam.title }}</h1>
-  <div id="timer" class="timer" role="timer" aria-live="off">--:--</div>
-</div>
-<form action="/student/exam/submit/{{ session.id }}" method="POST" class="above-scene mx-auto w-full max-w-2xl px-4 py-8 flex flex-col gap-5">
-  {% for item in exam_data %}
-  <fieldset class="panel">
-    <legend class="sr-only">Soal {{ loop.index }}</legend>
-    <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}</p>
-    <p class="q-text">{{ item.question.text }}</p>
-    {% for opt in item.options %}
-    <label class="option">
-      <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required>
-      <span>{{ opt.text }}</span>
-    </label>
-    {% endfor %}
-  </fieldset>
-  {% endfor %}
-  <div class="py-6 text-center">
-    <button type="submit" class="btn btn-primary" style="min-height:52px;padding:0 28px" onclick="return confirm('Kirim semua jawaban sekarang? Jawaban tidak bisa diubah lagi.');">Kirim jawaban</button>
+<div class="guarded" data-guard="exam" data-violation-url="/student/exam/violation/{{ session.id }}" id="guard-root">
+  <div class="exam-bar">
+    <h1 class="exam-title">{{ exam.title }}</h1>
+    <div class="flex items-center gap-2">
+      <button type="button" id="guard-fullscreen" class="btn btn-ghost btn-sm" hidden>Layar penuh</button>
+      <div id="timer" class="timer" role="timer" aria-live="off">--:--</div>
+    </div>
   </div>
-</form>
+  <form id="form-ujian" action="/student/exam/submit/{{ session.id }}" method="POST" class="above-scene mx-auto w-full max-w-2xl px-4 py-8 flex flex-col gap-5">
+    {% for item in exam_data %}
+    <fieldset class="panel" data-soal="{{ item.question.id }}">
+      <legend class="sr-only">Soal {{ loop.index }}</legend>
+      <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}</p>
+      <p class="q-text">{{ item.question.text }}</p>
+      {% if item.question.question_type == 'esai' %}
+      <label class="field">
+        <span class="label">Jawabanmu · {{ item.question.points }} poin</span>
+        <textarea name="essay_{{ item.question.id }}" rows="4" required class="textarea" maxlength="5000"
+                  data-q="{{ item.question.id }}" spellcheck="false" autocomplete="off">{{ item.teks|e }}</textarea>
+      </label>
+      {% else %}
+      {% for opt in item.options %}
+      <label class="option">
+        <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required data-q="{{ item.question.id }}"{% if item.terpilih == opt.id %} checked{% endif %}>
+        <span>{{ opt.text }}</span>
+      </label>
+      {% endfor %}
+      {% endif %}
+    </fieldset>
+    {% endfor %}
+    <div class="py-6 text-center">
+      <button type="submit" id="tombol-kirim" class="btn btn-primary" style="min-height:52px;padding:0 28px">Kirim jawaban</button>
+    </div>
+  </form>
+  {{ watermark(student_name, sekarang) }}
+  {{ shield('Siap mengerjakan?',
+            'Ujian dibuka layar penuh. Jangan pindah tab, membuka aplikasi lain, atau keluar dari layar penuh: setiap kejadian tercatat untuk guru, dan pada kejadian ke-' ~ maks_pelanggaran ~ ' jawaban dikirim otomatis. Waktu sudah berjalan.',
+            'Mulai ujian', terbuka=True) }}
+</div>
 {% endblock %}
 {% block scripts %}
+<script>
+  // Data-guard dibaca dari <body>: salin atributnya dari pembungkus
+  const akar = document.getElementById('guard-root');
+  document.body.dataset.guard = akar.dataset.guard;
+  document.body.dataset.violationUrl = akar.dataset.violationUrl;
+  document.body.classList.add('guarded');
+</script>
+<script src="/static/js/iw-guard.js"></script>
 <script>
   // Hitung mundur hanya tampilan; batas waktu sebenarnya diperiksa server
   const expires = new Date("{{ expires_at }}").getTime();
@@ -35,12 +62,66 @@
   function tick() {
     const d = expires - Date.now();
     if (isNaN(d)) { timer.textContent = '--:--'; return; }
-    if (d <= 0) { timer.textContent = 'Waktu habis'; timer.classList.add('is-over'); clearInterval(id); return; }
+    if (d <= 0) {
+      // Waktu habis: jawaban yang sudah dipilih dikirim otomatis (server memberi toleransi 2 menit)
+      timer.textContent = 'Waktu habis';
+      timer.classList.add('is-over');
+      clearInterval(id);
+      window.iwGuard.kirimOtomatis();
+      return;
+    }
     const m = Math.floor(d / 60000);
     const s = Math.floor((d % 60000) / 1000);
     timer.textContent = pad(m) + ':' + pad(s);
   }
   const id = setInterval(tick, 1000);
   tick();
+
+  // Konfirmasi kirim: tandai dulu supaya dialog konfirmasi tidak dihitung sebagai "keluar halaman"
+  document.getElementById('form-ujian').addEventListener('submit', (e) => {
+    if (e.submitter && e.submitter.id === 'tombol-kirim') {
+      window.iwGuard.tandaiKirim();
+      if (!confirm('Kirim semua jawaban sekarang? Jawaban tidak bisa diubah lagi.')) {
+        e.preventDefault();
+        window.iwGuard.batalKirim();
+      }
+    }
+  });
+
+  // ---- Log aktivitas: dikirim berkelompok ke server, juga dipakai memulihkan jawaban saat dimuat ulang ----
+  const urlLog = '/student/exam/events/{{ session.id }}';
+  let antrean = [];
+  function catatAktivitas(k, q, o, d) { antrean.push({ k, q, o, d }); }
+  function kirimLog(keepalive) {
+    if (!antrean.length) return;
+    const isi = JSON.stringify(antrean.splice(0, 100));
+    fetch(urlLog, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: isi, keepalive: !!keepalive, credentials: 'same-origin' }).catch(() => {});
+  }
+  setInterval(kirimLog, 4000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) kirimLog(true); });
+
+  document.querySelectorAll('input[type=radio][data-q]').forEach(r => {
+    r.addEventListener('change', () => catatAktivitas('pilih', +r.dataset.q, +r.value));
+  });
+  document.querySelectorAll('textarea[data-q]').forEach(t => {
+    let jeda;
+    t.addEventListener('input', () => { clearTimeout(jeda); jeda = setTimeout(() => catatAktivitas('esai', +t.dataset.q, null, t.value), 1200); });
+    t.addEventListener('blur', () => { clearTimeout(jeda); catatAktivitas('esai', +t.dataset.q, null, t.value); });
+  });
+  // Soal dianggap "dilihat" bila tampil di layar minimal 0,8 detik
+  if ('IntersectionObserver' in window) {
+    const timerLihat = new Map();
+    const pengamat = new IntersectionObserver(entri => entri.forEach(e => {
+      const q = +e.target.dataset.soal;
+      if (e.isIntersecting) timerLihat.set(q, setTimeout(() => catatAktivitas('lihat', q), 800));
+      else clearTimeout(timerLihat.get(q));
+    }), { threshold: 0.6 });
+    document.querySelectorAll('fieldset[data-soal]').forEach(f => pengamat.observe(f));
+  }
+  document.getElementById('form-ujian').addEventListener('submit', () => kirimLog(true));
+
+  document.getElementById('guard-fullscreen').addEventListener('click', async (e) => {
+    try { await document.documentElement.requestFullscreen(); e.target.hidden = true; } catch (err) {}
+  });
 </script>
 {% endblock %}

@@ -3,7 +3,8 @@
 {% block title %}Beranda · Informatika World{% endblock %}
 {% block eyebrow %}Beranda{% endblock %}
 {% block heading %}Halo{% if student_name %}, <em>{{ student_name.split(' ')[0]|e }}</em>{% endif %}{% endblock %}
-{% block lead %}<p class="lead">{% if exams %}Ada {{ exams|length }} ujian yang bisa kamu kerjakan. Waktu mulai berjalan saat kamu menekan Mulai.{% else %}Belum ada ujian yang dibuka guru.{% endif %}</p>{% endblock %}
+{% set sisa = exams|rejectattr('id', 'in', selesai)|list|length %}
+{% block lead %}<p class="lead">{% if not tingkat %}Kamu belum masuk rombel. Minta gurumu memasukkanmu ke rombel supaya ujian muncul.{% elif sisa %}Ada {{ sisa }} ujian yang bisa kamu kerjakan. Waktu mulai berjalan saat kamu menekan Mulai, dan tiap ujian hanya bisa dikerjakan sekali.{% elif exams %}Semua ujian sudah kamu kerjakan.{% else %}Belum ada ujian yang dibuka guru.{% endif %}</p>{% endblock %}
 {% block content %}
 <section class="stack" aria-label="Ujian tersedia">
   {% for exam in exams %}
@@ -17,10 +18,22 @@
     </div>
     <div class="mt-5 flex flex-wrap items-center justify-between gap-4">
       <span class="inline-flex items-center gap-2 muted text-sm"><span class="w-4 h-4">{{ icon('clock') }}</span>{{ exam.duration_minutes }} menit</span>
+      {% if exam.id in selesai and remedial.get(exam.id) == 'approved' %}
+      <form action="/student/exam/start" method="POST">
+        <input type="hidden" name="exam_id" value="{{ exam.id }}">
+        <button type="submit" class="btn btn-primary">{{ icon('refresh') }}Mulai remedial</button>
+      </form>
+      {% elif exam.id in selesai %}
+      <span class="flex flex-wrap items-center gap-3">
+        {% if remedial.get(exam.id) == 'pending' %}<span class="chip chip-amber chip-dot">Remedial menunggu guru</span>{% endif %}
+        <a href="/student/exam/result/{{ selesai[exam.id].id }}" class="btn btn-ghost">{{ icon('check') }}Selesai · lihat hasil</a>
+      </span>
+      {% else %}
       <form action="/student/exam/start" method="POST">
         <input type="hidden" name="exam_id" value="{{ exam.id }}">
         <button type="submit" class="btn btn-primary">Mulai {{ icon('arrow-right') }}</button>
       </form>
+      {% endif %}
     </div>
   </article>
   {% else %}

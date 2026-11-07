@@ -30,3 +30,6 @@ _to_delete/
 
 # Cache pytest
 .pytest_cache/
+
+# Catatan kerja lokal (tidak ikut ke GitHub)
+CLAUDE.md

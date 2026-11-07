@@ -1,0 +1,12 @@
+{# Halaman error umum. Detail teknis hanya dicatat di konsol server, tidak ditampilkan. #}
+{% extends "layouts/auth.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}Terjadi kesalahan · Informatika World{% endblock %}
+{% block content %}
+<p class="eyebrow" style="color:var(--danger)">Terjadi kesalahan</p>
+<h1 class="h-display">Halaman ini <em>gagal dimuat</em></h1>
+<p class="lead">Coba muat ulang. Kalau masih gagal, beri tahu guru atau admin. Detail kesalahan sudah tercatat di server.</p>
+<div class="mt-8 flex flex-wrap gap-3">
+  <a href="{{ kembali or '/login' }}" class="btn btn-primary">{{ icon('arrow-left') }}Kembali</a>
+</div>
+{% endblock %}

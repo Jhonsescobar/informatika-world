@@ -1,29 +1,61 @@
 {% extends "layouts/teacher.html" %}
 {% from "layouts/icons.html" import icon %}
 {% set active = 'exams' %}
+{% set label_status = {'completed': 'Selesai', 'submitted': 'Selesai', 'expired': 'Waktu habis', 'active': 'Mengerjakan'} %}
 {% block title %}Hasil {{ exam.title }} · Informatika World{% endblock %}
 {% block back %}<a href="/teacher/exams" class="back-link">{{ icon('arrow-left') }}Semua ujian</a>{% endblock %}
-{% block eyebrow %}Hasil ujian{% endblock %}
+{% block eyebrow %}Hasil ujian · Kelas {{ exam.class_target }}{% endblock %}
 {% block heading %}{{ exam.title }}{% endblock %}
 {% block lead %}
-<p class="lead">{{ sessions|length }} sesi tercatat.</p>
+<p class="lead">{{ rows|length }} sesi tercatat. Nilai di bawah 60% boleh mengajukan remedial; Anda yang memutuskan.</p>
 <div class="head-actions"><a href="/teacher/exams/{{ exam.id }}/analytics" class="btn btn-primary">{{ icon('chart') }}Analitik soal</a></div>
 {% endblock %}
 {% block content %}
-<section class="panel panel-tight overflow-x-auto" aria-label="Hasil per siswa">
-  <table class="table">
-    <thead><tr><th>Siswa (ID)</th><th class="num">Skor</th><th class="num">Dikirim</th></tr></thead>
-    <tbody>
-      {% for s in sessions %}
-      <tr>
-        <td>Siswa #{{ s.student_id }}</td>
-        <td class="num" style="color:#fff;font-size:16px">{{ s.score if s.score is not none else '–' }}</td>
-        <td class="num dim">{{ s.submitted_at.strftime('%H:%M:%S') if s.submitted_at else 'belum' }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="3"><div class="empty my-4"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mengirim jawaban.</div></td></tr>
+<div class="stack">
+  {% if permintaan %}
+  <section class="panel panel-accent" aria-labelledby="judul-remedial">
+    <div class="panel-head">
+      <div>
+        <h2 class="h-section" id="judul-remedial">Permintaan remedial · {{ permintaan|length }}</h2>
+        <p class="panel-note">Disetujui = siswa boleh mengerjakan sekali lagi. Nilai tertinggi yang dipakai.</p>
+      </div>
+    </div>
+    <div class="rows" style="margin:0 -24px -24px">
+      {% for req, siswa in permintaan %}
+      <div class="row">
+        <div class="row-main">
+          <p class="row-title">{{ siswa.name|e }}</p>
+          <p class="row-meta"><span>Diajukan {{ req.created_at.astimezone().strftime('%d/%m %H:%M') if req.created_at else '' }}</span></p>
+        </div>
+        <div class="row-actions">
+          <form action="/teacher/remedial/{{ req.id }}/reject" method="POST"><button type="submit" class="link-action is-danger">Tolak</button></form>
+          <form action="/teacher/remedial/{{ req.id }}/approve" method="POST"><button type="submit" class="btn btn-primary btn-sm">{{ icon('check') }}Setujui</button></form>
+        </div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-</section>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="panel panel-tight overflow-x-auto" aria-label="Hasil per siswa">
+    <table class="table">
+      <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Detail</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="text-white font-semibold hover:underline">{{ r.siswa.name|e }}</a>{% if r.ke > 1 %} <span class="chip chip-amber ml-1">remedial {{ r.ke - 1 }}</span>{% endif %}</td>
+          <td><span class="chip">{{ label_status.get(r.sesi.status, r.sesi.status) }}</span></td>
+          <td class="num">{% if r.persen is not none %}<span class="chip {{ 'chip-teal' if r.persen >= 60 else 'chip-danger' }}" style="font-size:13px">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+          <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
+          <td class="num dim hidden md:table-cell">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
+          <td class="num"><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="link-action is-teal">Log {{ icon('arrow-right') }}</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6"><div class="empty my-4"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <p class="text-xs dim">Pelanggaran = keluar dari layar ujian, pindah tab, mencoba menyalin, klik kanan, screenshot, atau membuka alat pengembang. Tiga kali keluar layar membuat jawaban terkirim otomatis.</p>
+</div>
 {% endblock %}

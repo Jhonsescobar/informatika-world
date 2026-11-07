@@ -1,0 +1,22 @@
+{% extends "layouts/student.html" %}
+{% from "layouts/icons.html" import icon %}
+{% block title %}Kisi-kisi · Informatika World{% endblock %}
+{% block eyebrow %}Kisi-kisi{% endblock %}
+{% block heading %}Bahan <em>sebelum ujian</em>{% endblock %}
+{% block lead %}<p class="lead">Dibuka guru untuk waktu tertentu. Baca dan catat dengan tanganmu sendiri: halaman kisi-kisi tidak bisa disalin atau dicetak.</p>{% endblock %}
+{% block content %}
+<section class="stack" aria-label="Kisi-kisi terbuka">
+  {% for m in materials %}
+  <a href="/student/materials/{{ m.id }}" class="panel block group" style="text-decoration:none">
+    <div class="flex items-start justify-between gap-3">
+      <h2 class="font-semibold text-white text-lg" style="font-family:var(--font-display)">{{ m.title|e }}</h2>
+      <span class="link-action is-teal shrink-0">Baca {{ icon('arrow-right') }}</span>
+    </div>
+    {% if m.description %}<p class="mt-2 text-sm muted">{{ m.description|e }}</p>{% endif %}
+    {% if m.close_at %}<p class="mt-4"><span class="chip chip-amber chip-dot">Ditutup {{ m.close_at.astimezone().strftime('%d/%m %H:%M') }}</span></p>{% endif %}
+  </a>
+  {% else %}
+  <div class="empty"><strong>Belum ada kisi-kisi yang dibuka</strong>Gurumu akan membukanya sebelum ujian.</div>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,16 +1,12 @@
 # app/routers/auth.py
-# Router autentikasi: halaman login baru (pilih Guru/Siswa), login guru,
-# login siswa (cari nama -> halaman PIN), dan redirect dashboard.
-#
-# ================= DAFTAR PERUBAHAN VERSI INI =================
-# 1. GET /login       -> sekarang menampilkan halaman PILIH (login_pilih.html)
-# 2. GET /login/guru  -> BARU: halaman login guru (login_guru.html)
-# 3. GET /login/siswa -> BARU: halaman cari nama siswa (login_siswa.html)
-# 4. GET /student/login (alamat lama) -> di-redirect ke /login/siswa
-# 5. GET /auth/student/search -> minimal 1 huruf (dulu 3), urut A-Z, maks 10 hasil
-# 6. GET /student/verify -> ikut mengirim nama siswa agar halaman PIN lebih ramah
-# Route POST (/auth/teacher/login & /auth/student/verify) TIDAK diubah sama sekali.
-# ===============================================================
+# Autentikasi guru dan siswa.
+#   GET  /login                 pilih masuk sebagai guru atau siswa
+#   GET  /login/guru            form email + password
+#   POST /auth/teacher/login    cek password guru (dibatasi 5x salah / 10 menit)
+#   GET  /login/siswa           cari nama (GET /auth/student/search, minimal 3 huruf)
+#   GET  /student/verify        form PIN untuk siswa yang dipilih
+#   POST /auth/student/verify   cek PIN siswa (dibatasi 5x salah / 10 menit)
+#   POST /logout                hapus cookie login
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -23,6 +19,14 @@ from app.utils.security import verify_password, create_access_token
 from app.models.user import User
 from app.models.student import Student
 from app.utils.deps import require_teacher, require_student
+from app.utils import ratelimit
+
+
+def pasang_cookie_login(request: Request, response, token: str):
+    # Secure aktif otomatis bila diakses lewat HTTPS (misalnya lewat tunnel Cloudflare)
+    https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    response.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True,
+                        max_age=3600, samesite="lax", secure=https)
 
 router = APIRouter(tags=["Auth"])
 
@@ -55,7 +59,7 @@ async def login_siswa_page(request: Request):
     return HTMLResponse(content=html_content)
 
 # ============================================================
-# BAGIAN 2 - LOGIN GURU (POST) - LOGIKA ASLI, TIDAK DIUBAH
+# BAGIAN 2 - LOGIN GURU (POST)
 # ============================================================
 @router.post("/auth/teacher/login")
 async def login_teacher(request: Request, db: Session = Depends(get_db)):
@@ -63,15 +67,20 @@ async def login_teacher(request: Request, db: Session = Depends(get_db)):
     email = form_data.get("email")                   # field name="email" di login_guru.html
     password = form_data.get("password")             # field name="password" di login_guru.html
 
+    kunci = "guru:" + (email or "").strip().lower()
+    if ratelimit.sisa_kunci_detik(kunci):              # terlalu banyak salah: tunggu dulu
+        return RedirectResponse(url="/login/guru?error=terkunci", status_code=303)
     user = db.query(User).filter(User.email == email).first()   # cari user berdasarkan email
-    if not user or not verify_password(password, user.hashed_password):  # user tidak ada / password salah
-        raise HTTPException(status_code=400, detail="Email atau password salah")
+    if not user or not user.is_active or not verify_password(password or "", user.hashed_password):
+        ratelimit.catat_gagal(kunci)
+        return RedirectResponse(url="/login/guru?error=salah", status_code=303)
+    ratelimit.reset(kunci)
 
     token_data = {"sub": str(user.id), "role": user.role}       # isi token: id user + role
     access_token = create_access_token(data=token_data)         # bikin token JWT
 
     response = RedirectResponse(url="/teacher/dashboard", status_code=303)  # berhasil -> dashboard guru
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, max_age=3600, samesite="lax")  # simpan token di cookie
+    pasang_cookie_login(request, response, access_token)
     return response
 
 # ============================================================
@@ -99,18 +108,18 @@ async def search_student(name: str, db: Session = Depends(get_db)):
     return results
 
 # Halaman PIN (langkah ke-2 login siswa): siswa sudah memilih nama, sekarang isi PIN
-# PERUBAHAN KECIL: nama siswa ikut dikirim ke template agar halaman PIN bisa menyapa
+# Nama siswa dikirim ke template agar halaman PIN bisa menyapa
 @router.get("/student/verify", response_class=HTMLResponse)
 async def student_verify_page(request: Request, student_id: int, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.id == student_id).first()   # ambil data siswa dari database
-    if not student:                                    # id siswa tidak ditemukan (misal URL diubah manual)
+    if not student or not student.is_active:           # tidak ditemukan / nonaktif
         return RedirectResponse(url="/login/siswa", status_code=303)       # -> balik ke halaman cari nama
     template = templates_env.get_template("student/verify_pin.html")
     # student_name dikirim agar halaman PIN bisa menampilkan "Halo, Andi Pratama!"
     html_content = template.render(request=request, student_id=student_id, student_name=student.name)
     return HTMLResponse(content=html_content)
 
-# POST verifikasi PIN - LOGIKA ASLI, TIDAK DIUBAH
+# POST verifikasi PIN
 @router.post("/auth/student/verify")
 async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
     form_data = await request.form()                  # ambil data dari form halaman PIN
@@ -118,16 +127,24 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
     pin = form_data.get("pin")                        # PIN yang diketik siswa
 
     if not str(student_id or "").isdigit():           # id dari form berupa teks: pastikan angka
-        raise HTTPException(status_code=400, detail="PIN salah")
+        return RedirectResponse(url="/login/siswa", status_code=303)
+    kembali = f"/student/verify?student_id={int(student_id)}"
+    kunci = f"siswa:{int(student_id)}"
+    if ratelimit.sisa_kunci_detik(kunci):              # 5x salah dalam 10 menit: PIN dikunci sementara
+        return RedirectResponse(url=kembali + "&error=terkunci", status_code=303)
     student = db.query(Student).filter(Student.id == int(student_id)).first()   # cari siswa berdasarkan id
-    if not student or not verify_password(pin or "", student.pin_hash):          # siswa tidak ada / PIN salah
-        raise HTTPException(status_code=400, detail="PIN salah")
+    if not student or not student.is_active:           # tidak ada / dinonaktifkan guru
+        return RedirectResponse(url="/login/siswa", status_code=303)
+    if not verify_password(pin or "", student.pin_hash):
+        ratelimit.catat_gagal(kunci)
+        return RedirectResponse(url=kembali + "&error=pin", status_code=303)
+    ratelimit.reset(kunci)
 
     token_data = {"sub": str(student.id), "role": "student"}   # isi token: id siswa + role student
     access_token = create_access_token(data=token_data)        # bikin token JWT
 
     response = RedirectResponse(url="/student/dashboard", status_code=303)  # berhasil -> dashboard siswa
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True, max_age=3600, samesite="lax")  # simpan token di cookie
+    pasang_cookie_login(request, response, access_token)
     return response
 
 # ============================================================

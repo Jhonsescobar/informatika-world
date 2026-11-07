@@ -17,7 +17,11 @@ from pathlib import Path
 app = FastAPI(
     title="INFORMATIKA WORLD",
     description="LMS Pembelajaran Informatika SMP - Learn • Explore • Challenge • Achieve",
-    version="0.1.0"
+    version="0.1.0",
+    # Halaman dokumentasi API dimatikan: tidak perlu terlihat oleh siswa / publik
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 # Membuat instance aplikasi FastAPI
 

@@ -4,7 +4,7 @@
 {% block title %}Materi · Informatika World{% endblock %}
 {% block eyebrow %}Materi{% endblock %}
 {% block heading %}Bahan ajar <em>per kelas</em>{% endblock %}
-{% block lead %}<p class="lead">{{ materials|length }} materi tersimpan untuk kelas VII, VIII, dan IX.</p>{% endblock %}
+{% block lead %}<p class="lead">{{ materials|length }} materi tersimpan. Buka sebagai kisi-kisi supaya siswa di tingkat itu bisa membacanya sebelum ujian (tidak bisa disalin atau dicetak).</p>{% endblock %}
 {% block content %}
 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
   <section class="panel panel-tight" aria-labelledby="judul-daftar">
@@ -16,8 +16,26 @@
       <article class="row">
         <div class="row-main">
           <p class="row-title">{{ mat.title }}</p>
-          <p class="row-meta"><span class="chip chip-teal">Kelas {{ mat.class_target }}</span><span>{{ mat.created_at.strftime('%d %b %Y') }}</span></p>
+          {% set terbuka = mat.is_published and (not mat.close_at or mat.close_at.timestamp() > now_ts) %}
+          <p class="row-meta">
+            <span class="chip chip-teal">Kelas {{ mat.class_target }}</span>
+            {% if terbuka %}<span class="chip chip-amber chip-dot">Dibuka{{ ' sampai ' ~ mat.close_at.astimezone().strftime('%d/%m %H:%M') if mat.close_at else '' }}</span>
+            {% elif mat.is_published %}<span class="chip">Batas waktu lewat</span>
+            {% else %}<span class="chip">Tertutup untuk siswa</span>{% endif %}
+            <span>{{ mat.created_at.strftime('%d %b %Y') }}</span>
+          </p>
           {% if mat.description %}<p class="mt-2 text-sm muted">{{ mat.description }}</p>{% endif %}
+          <form action="/teacher/materials/{{ mat.id }}/visibility" method="POST" class="mt-3 flex flex-wrap items-center gap-2">
+            {% if terbuka %}
+            <input type="hidden" name="action" value="close">
+            <button type="submit" class="btn btn-ghost btn-sm">Tutup kisi-kisi</button>
+            {% else %}
+            <input type="hidden" name="action" value="open">
+            <label class="sr-only" for="batas-{{ mat.id }}">Batas waktu baca</label>
+            <input type="datetime-local" name="close_at" id="batas-{{ mat.id }}" class="input" style="min-height:34px;padding:4px 10px;font-size:13px;width:auto" title="Kosongkan bila terbuka sampai ditutup manual">
+            <button type="submit" class="btn btn-primary btn-sm">Buka untuk siswa</button>
+            {% endif %}
+          </form>
         </div>
         <form action="/teacher/materials/{{ mat.id }}/delete" method="POST" onsubmit="return confirm('Hapus materi ini?');">
           <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>

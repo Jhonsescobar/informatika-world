@@ -34,6 +34,13 @@ class Question(Base):
     
     points = Column(Integer, default=1)
     # Poin/nilai soal ini (default 1)
+
+    # Jenis soal: "pg" (pilihan ganda) atau "esai"
+    question_type = Column(String, nullable=False, default="pg", server_default="pg")
+    # Khusus esai: kunci jawaban (boleh beberapa, satu per baris) dan kata kunci wajib
+    # (pisahkan koma; sinonim dipisah garis miring, contoh: "sentuh/raba, fisik")
+    answer_key = Column(Text, nullable=True)
+    keywords = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

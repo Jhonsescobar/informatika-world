@@ -1,22 +1,77 @@
 {% extends "layouts/teacher.html" %}
 {% from "layouts/icons.html" import icon %}
 {% set active = 'students' %}
-{% set aktif = students|selectattr('is_active')|list|length %}
-{% set tanpa_rombel = students|rejectattr('enrollments')|list|length %}
+{% set aktif = semua|selectattr('is_active')|list|length %}
+{% set kembali = '/teacher/students' ~ ('?rombel=' ~ filter_rombel if filter_rombel else '') %}
 {% block title %}Siswa · Informatika World{% endblock %}
 {% block eyebrow %}Data siswa{% endblock %}
 {% block heading %}Siswa & <em>rombel</em>{% endblock %}
 {% block content %}
 <div class="stack">
-  {% if deleted %}
-  <div class="notice" role="status">{{ icon('check') }}<span>Siswa dan seluruh datanya sudah dihapus permanen.</span></div>
+  {% if pesan %}
+  <div class="notice" role="status">{{ icon('check') }}<span>{{ pesan }}</span></div>
   {% endif %}
 
   <div class="grid gap-4 grid-cols-2 lg:grid-cols-3">
-    <div class="panel stat stat-light"><span class="stat-label">Total siswa</span><span class="stat-value">{{ students|length }}</span></div>
+    <div class="panel stat stat-light"><span class="stat-label">Total siswa</span><span class="stat-value">{{ semua|length }}</span></div>
     <div class="panel stat"><span class="stat-label">Aktif</span><span class="stat-value">{{ aktif }}</span></div>
-    <div class="panel stat col-span-2 lg:col-span-1"><span class="stat-label">Belum punya rombel</span><span class="stat-value" {% if tanpa_rombel %}style="color:var(--amber)"{% endif %}>{{ tanpa_rombel }}</span></div>
+    <a href="/teacher/students?rombel=none" class="panel stat col-span-2 lg:col-span-1" style="text-decoration:none"><span class="stat-label">Belum punya rombel</span><span class="stat-value" {% if jumlah_tanpa_rombel %}style="color:var(--amber)"{% endif %}>{{ jumlah_tanpa_rombel }}</span></a>
   </div>
+
+  <section class="panel panel-tight" aria-labelledby="judul-daftar">
+    <div class="px-6 pt-6 pb-4 flex flex-col gap-4" style="border-bottom:1px solid var(--line)">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="h-section" id="judul-daftar">Daftar siswa</h2>
+        <form method="GET" action="/teacher/students" class="flex gap-2 w-full sm:w-auto">
+          {% if filter_rombel %}<input type="hidden" name="rombel" value="{{ filter_rombel|e }}">{% endif %}
+          <input type="search" name="q" value="{{ cari|e }}" placeholder="Cari nama" class="input" style="min-height:38px;padding:6px 12px;font-size:14px" aria-label="Cari nama siswa">
+        </form>
+      </div>
+      <nav class="flex flex-wrap gap-2" aria-label="Saring per rombel">
+        <a href="/teacher/students" class="chip {{ 'chip-teal' if not filter_rombel }}" style="font-size:12px;padding:5px 11px">Semua · {{ semua|length }}</a>
+        {% for r, k in rombels %}
+        <a href="/teacher/students?rombel={{ r.id }}" class="chip {{ 'chip-teal' if filter_rombel == r.id|string }}" style="font-size:12px;padding:5px 11px">{{ r.rombel_name }} · {{ jumlah_per_rombel.get(r.id, 0) }}</a>
+        {% endfor %}
+        <a href="/teacher/students?rombel=none" class="chip {{ 'chip-amber' if filter_rombel == 'none' }}" style="font-size:12px;padding:5px 11px">Tanpa rombel · {{ jumlah_tanpa_rombel }}</a>
+      </nav>
+    </div>
+
+    {# Form aksi massal berdiri sendiri; kotak centang di tabel terhubung lewat atribut form="aksi-massal" #}
+    <form id="aksi-massal" action="/teacher/students/bulk" method="POST"></form>
+
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead><tr>
+          <th style="width:48px"><label class="check" title="Pilih semua"><input type="checkbox" id="pilih-semua" aria-label="Pilih semua siswa di daftar ini"></label></th>
+          <th>Nama</th><th class="hidden md:table-cell">Rombel</th><th class="hidden lg:table-cell">NIPD</th><th class="hidden sm:table-cell">Status</th><th class="text-right">Aksi</th>
+        </tr></thead>
+        <tbody>
+          {% for s in students %}
+          <tr>
+            <td><label class="check"><input type="checkbox" name="student_ids" value="{{ s.id }}" form="aksi-massal" class="pilih-siswa" aria-label="Pilih {{ s.name|e }}"></label></td>
+            <td>
+              <span class="text-white font-semibold">{{ s.name }}</span>
+              <span class="md:hidden block mt-1 text-xs dim">{{ s.enrollments[0].rombel.rombel_name if s.enrollments else 'Tanpa rombel' }}<span class="sm:hidden"> · {{ 'Aktif' if s.is_active else 'Nonaktif' }}</span></span>
+            </td>
+            <td class="hidden md:table-cell">{% if s.enrollments %}<span class="chip chip-teal">{{ s.enrollments[0].rombel.rombel_name }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+            <td class="hidden lg:table-cell mono dim">{{ s.nipd or '–' }}</td>
+            <td class="hidden sm:table-cell">{% if s.is_active %}<span class="chip chip-teal chip-dot">Aktif</span>{% else %}<span class="chip chip-dot">Nonaktif</span>{% endif %}</td>
+            <td>
+              <div class="row-actions flex-col items-end sm:flex-row sm:items-center">
+                <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
+                  <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
+                </form>
+                <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6"><div class="empty my-4"><strong>Tidak ada siswa di sini</strong>Ganti saringan rombel, atau tambahkan siswa di bawah.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <section class="panel panel-accent" aria-labelledby="judul-impor">
     <div class="panel-head">
@@ -41,83 +96,55 @@
           {% if ns.kelas %}</optgroup>{% endif %}
         </select></label>
       <label class="field"><span class="label">Daftar nama</span>
-        <textarea name="names_text" rows="5" required class="textarea mono" style="font-size:14px" placeholder="Adel Margareth&#10;Bima Nathanael&#10;..."></textarea></label>
+        <textarea name="names_text" rows="5" required class="textarea" style="font-size:14px" placeholder="Adel Margareth&#10;Bima Nathanael&#10;..."></textarea></label>
       <div class="lg:col-start-2"><button type="submit" class="btn btn-primary">{{ icon('key') }}Buat akun & PIN</button></div>
     </form>
   </section>
-
-  <section class="panel panel-tight" aria-labelledby="judul-daftar">
-    <div class="panel-head px-6 pt-6 mb-0 pb-4" style="border-bottom:1px solid var(--line)">
-      <h2 class="h-section" id="judul-daftar">Semua siswa</h2>
-      <span class="chip">urut nama</span>
-    </div>
-
-    {# Laptop: tabel #}
-    <div class="hidden md:block overflow-x-auto">
-      <table class="table">
-        <thead><tr><th>Nama</th><th>Rombel</th><th>NIPD</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
-        <tbody>
-          {% for s in students %}
-          <tr>
-            <td class="text-white font-semibold">{{ s.name }}</td>
-            <td>
-              {% if s.enrollments %}
-              <span class="inline-flex items-center gap-3">
-                <span class="chip chip-teal">{{ s.enrollments[0].rombel.rombel_name }}</span>
-                <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap ada.');">
-                  <button type="submit" class="link-action is-danger" title="Keluarkan dari rombel">{{ icon('x') }}Keluarkan</button>
-                </form>
-              </span>
-              {% else %}<span class="dim">–</span>{% endif %}
-            </td>
-            <td class="mono dim">{{ s.nipd or '–' }}</td>
-            <td>{% if s.is_active %}<span class="chip chip-teal chip-dot">Aktif</span>{% else %}<span class="chip chip-dot">Nonaktif</span>{% endif %}</td>
-            <td>
-              <div class="row-actions">
-                <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
-                  <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
-                </form>
-                <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
-              </div>
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5"><div class="empty my-4"><strong>Belum ada siswa</strong>Tambahkan lewat form di atas.</div></td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    {# HP: kartu #}
-    <div class="md:hidden rows">
-      {% for s in students %}
-      <div class="row flex-col items-stretch gap-3">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="row-title">{{ s.name }}</p>
-            <p class="row-meta mono">{{ s.nipd or 'Tanpa NIPD' }}</p>
-          </div>
-          {% if s.is_active %}<span class="chip chip-teal chip-dot">Aktif</span>{% else %}<span class="chip chip-dot">Nonaktif</span>{% endif %}
-        </div>
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {% if s.enrollments %}
-          <span class="chip chip-teal">{{ s.enrollments[0].rombel.rombel_name }}</span>
-          <form action="/teacher/enrollments/{{ s.enrollments[0].id }}/delete" method="POST" onsubmit="return confirm('Keluarkan siswa ini dari rombel {{ s.enrollments[0].rombel.rombel_name }}? Akun dan nilainya tetap ada.');">
-            <button type="submit" class="link-action is-danger">{{ icon('x') }}Keluarkan</button>
-          </form>
-          {% else %}<span class="dim text-sm">Belum ada rombel</span>{% endif %}
-          <span class="ml-auto flex gap-4">
-            <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
-              <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
-            </form>
-            <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
-          </span>
-        </div>
-      </div>
-      {% else %}
-      <div class="p-6"><div class="empty"><strong>Belum ada siswa</strong>Tambahkan lewat form di atas.</div></div>
-      {% endfor %}
-    </div>
-  </section>
 </div>
+
+{# Bilah aksi massal: muncul saat ada siswa yang dicentang #}
+<div id="bilah-aksi" class="bulk-bar" hidden>
+  <span class="text-white font-semibold whitespace-nowrap"><span id="jumlah-pilih">0</span> dipilih</span>
+  <select name="action" form="aksi-massal" id="pilih-aksi" class="select" style="min-height:40px;padding-top:6px;padding-bottom:6px" aria-label="Aksi">
+    <option value="move">Pindahkan ke rombel</option>
+    <option value="deactivate">Nonaktifkan</option>
+    <option value="activate">Aktifkan</option>
+    <option value="unenroll">Keluarkan dari rombel</option>
+    <option value="delete">Hapus permanen</option>
+  </select>
+  <select name="rombel_id" form="aksi-massal" id="pilih-rombel" class="select" style="min-height:40px;padding-top:6px;padding-bottom:6px" aria-label="Rombel tujuan">
+    {% for r, k in rombels %}<option value="{{ r.id }}">{{ r.rombel_name }}</option>{% endfor %}
+  </select>
+  <input type="hidden" name="kembali" value="{{ kembali|e }}" form="aksi-massal">
+  <button type="submit" form="aksi-massal" class="btn btn-primary btn-sm" id="tombol-aksi">Terapkan</button>
+  <button type="button" class="btn btn-ghost btn-sm" id="batal-pilih">Batal</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const kotak = [...document.querySelectorAll('.pilih-siswa')];
+  const semua = document.getElementById('pilih-semua');
+  const bilah = document.getElementById('bilah-aksi');
+  const jumlah = document.getElementById('jumlah-pilih');
+  const aksi = document.getElementById('pilih-aksi');
+  const rombel = document.getElementById('pilih-rombel');
+  const tombol = document.getElementById('tombol-aksi');
+
+  function segarkan() {
+    const n = kotak.filter(k => k.checked).length;
+    jumlah.textContent = n;
+    bilah.hidden = n === 0;
+    document.body.style.paddingBottom = n ? '110px' : '';   // supaya baris terakhir tidak tertutup bilah
+    semua.checked = n > 0 && n === kotak.length;
+    semua.indeterminate = n > 0 && n < kotak.length;
+    rombel.hidden = aksi.value !== 'move';
+    tombol.textContent = aksi.value === 'delete' ? 'Lanjut ke konfirmasi' : 'Terapkan';
+    tombol.className = 'btn btn-sm ' + (aksi.value === 'delete' ? 'btn-danger' : 'btn-primary');
+  }
+  kotak.forEach(k => k.addEventListener('change', segarkan));
+  semua.addEventListener('change', () => { kotak.forEach(k => { k.checked = semua.checked; }); segarkan(); });
+  aksi.addEventListener('change', segarkan);
+  document.getElementById('batal-pilih').addEventListener('click', () => { kotak.forEach(k => { k.checked = false; }); segarkan(); });
+  segarkan();
+</script>
 {% endblock %}

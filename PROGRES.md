@@ -1,80 +1,91 @@
-# Progres Perapihan — Informatika World
+# Progres Informatika World
 
-Ceklis ini diperbarui setiap selesai satu langkah. `[x]` = selesai, `[ ]` = belum.
+Status per 7 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan prioritas.
 
-## Tahap 1 — Perbaikan seed rombel (7 Nov 2026)
+## Sudah selesai
 
-- [x] Akar error `NotNullViolation class_id` ditemukan: file di disk masih versi 2
-- [x] `seed_rombel.py` ditulis ulang (±80 baris, memakai model asli `SchoolClass`, `AcademicYear`, `Rombel`, `Enrollment`)
-- [x] Bug `is_active=True` di versi 3 dihindari (kolomnya Integer, diisi `1`)
-- [x] `app/seed.py`: tambah `db.flush()` agar `class_id` rombel terisi saat setup dari database kosong
-- [x] Dijalankan di PostgreSQL: 9 rombel dibuat, 33 siswa masuk VII.1
+### Fondasi & data
+- [x] Struktur akademik: tahun ajaran (2026/2027 aktif), tingkat VII–IX, 9 rombel VII.1–IX.3
+- [x] `seed_rombel.py` dan `ganti_tahun_ajaran.py` (aman dijalankan berulang)
+- [x] `app/models/__init__.py` mendaftarkan semua model (mencegah error relasi saat menjalankan script)
+- [x] Git rapi: `.gitattributes`, `.gitignore`, riwayat commit per fitur
 
-## Tahap 2 — Audit CRUD & sinkronisasi (7 Nov 2026)
+### Fitur guru
+- [x] Materi: tambah, lihat, hapus
+- [x] Bank soal & soal pilihan ganda: tambah, lihat, hapus bank (ikut menghapus soal, ujian, dan jawaban)
+- [x] Ujian: buat, terbitkan / tarik, hasil per siswa, analitik 3 soal tersulit, hapus
+- [x] Komponen nilai & bobot per tingkat, rekap nilai akhir per tingkat
+- [x] Siswa: tambah massal + PIN otomatis langsung ke rombel, cetak PIN
+- [x] Saring per rombel, cari nama, centang / pilih semua
+- [x] Aksi massal: pindah rombel, nonaktifkan, aktifkan, keluarkan dari rombel, hapus permanen
+- [x] Hapus permanen (satu atau banyak): rincian data yang ikut terhapus, konfirmasi ketik HAPUS, satu transaksi
+- [x] Kisi-kisi: materi dibuka/ditutup guru per materi, batas waktu baca opsional
+- [x] Remedial: siswa dengan nilai < 60% mengajukan, guru menyetujui/menolak, izin sekali pakai, nilai tertinggi dipakai
+- [x] Hasil ujian menampilkan nama siswa, persen, percobaan remedial, dan jumlah pelanggaran
+- [x] Soal esai: kunci jawaban (boleh beberapa), kata kunci wajib + sinonim, poin
+- [x] Penilaian esai otomatis (kata dasar, salah ketik, sinonim, kata kunci) + koreksi guru per jawaban
+- [x] Soal acak per siswa: "soal per siswa" diambil acak dari bank, tetap sama saat halaman dimuat ulang
+- [x] Detail sesi: jawaban per soal, kapan dijawab, berapa kali ganti, linimasa klik/tap + pelanggaran
 
-- [x] Semua route guru dilindungi `require_teacher`, semua route siswa dilindungi `require_student`
-- [x] Semua template yang dipanggil router ada; semua link/form di template punya route
-- [x] Route ganda di `teacher.py` dihapus (`GET /teacher/students` dan `POST /teacher/students/bulk-create` tertulis 2x) + `import random` ganda
-- [x] Uji otomatis: `pytest` 4/4 lulus; 9 halaman guru & siswa + bulk-create siswa membalas 200
-- [x] Model tidak mengubah struktur tabel (hanya menambah `relationship`), jadi migrasi Alembic tidak perlu ditambah
+### Fitur siswa
+- [x] Login 2 langkah: cari nama (minimal 3 huruf, siswa aktif saja) lalu PIN
+- [x] Hanya melihat dan bisa memulai ujian untuk tingkat rombelnya
+- [x] Kisi-kisi untuk tingkatnya: tidak bisa diseleksi, disalin, dicetak; isi tertutup saat meninggalkan halaman; watermark nama + waktu
+- [x] Beranda ujian, mengerjakan ujian dengan timer, hasil per soal, peringkat rombel & angkatan, lencana
+- [x] Satu ujian dikerjakan sekali; ujian yang selesai tampil "Selesai"; jawaban terkirim otomatis saat waktu habis
+- [x] Jawaban PG & esai tersimpan berkala: tidak hilang bila halaman tidak sengaja dimuat ulang
 
-### Matriks CRUD
+### Anti-cheat ujian
+- [x] Layar pembuka + layar penuh; tombol kembali browser dikunci
+- [x] Pindah tab / aplikasi / keluar layar penuh tercatat di server; peringatan 1–2, kirim otomatis pada ke-3
+- [x] Salin, tempel (termasuk ke kotak esai), klik kanan, seret, cetak, F12 / Ctrl+Shift+I / Ctrl+U diblokir dan tercatat
+- [x] PrintScreen: isi langsung ditutup, papan klip dikosongkan, tercatat
+- [x] Watermark nama siswa + waktu di seluruh layar ujian
+- [x] Batas: screenshot bawaan HP, rekam layar sistem operasi, dan foto dari HP lain TIDAK bisa diblokir oleh web
 
-| Fitur | Create | Read | Update | Delete |
-|---|---|---|---|---|
-| Materi | ✅ | ✅ | ❌ | ✅ |
-| Bank soal | ✅ | ✅ | ❌ | ✅ (ikut hapus soal, ujian, sesi, jawaban) |
-| Soal | ✅ | ✅ (di detail bank) | ❌ | ❌ |
-| Ujian | ✅ | ✅ + hasil + analitik | publish/unpublish saja | ✅ |
-| Komponen nilai | ✅ | ✅ + rekap per tingkat | ❌ | ✅ |
-| Nilai | otomatis dari ujian | ✅ | ❌ input manual | ❌ |
-| Siswa | ✅ massal + PIN | ✅ | ❌ (nama/NIPD/reset PIN) | nonaktifkan saja |
-| Rombel / penempatan siswa | ✅ saat bulk import | ✅ | ❌ pindah rombel | ✅ keluarkan dari rombel |
-| Tahun ajaran / tingkat | lewat script | — | `ganti_tahun_ajaran.py` | ❌ |
+### Tampilan
+- [x] Sistem desain bersama (3 layout, `iw.css`), font Raleway Bold + Montserrat
+- [x] Latar 3D Three.js (globe guru, aliran data siswa), redup di HP, diam bila "kurangi gerak"
+- [x] Responsif laptop / tablet / HP tanpa scroll menyamping
 
-## Tahap 3 — Rapikan Git (7 Nov 2026)
+### Keamanan (diuji dengan skrip serangan di server lokal)
+- [x] Password guru & PIN siswa di-hash Argon2; cookie login HttpOnly + SameSite=Lax, Secure otomatis di HTTPS
+- [x] Semua halaman guru/siswa dicek peran; akun dihapus/nonaktif langsung keluar walau token masih berlaku
+- [x] Tombol Keluar (sebelumnya tidak ada logout)
+- [x] Batas 5x salah login per 10 menit (PIN siswa dan password guru)
+- [x] Siswa hanya bisa membuka dan mengirim sesi ujian miliknya sendiri
+- [x] Skor dihitung server dari soal di bank ujian itu saja; opsi harus milik soalnya (sebelumnya nilai penuh bisa dipalsukan)
+- [x] Jawaban tidak bisa dikirim ulang; batas waktu ditegakkan server (toleransi 2 menit)
+- [x] Halaman error umum; detail teknis hanya di log server (sebelumnya traceback tampil ke siswa)
+- [x] `/docs`, `/redoc`, `/openapi.json` dimatikan
+- [x] Login PIN tidak lagi bergantung pada driver database (konversi `student_id` ke angka)
 
-- [x] `.gitattributes` ditambahkan (akhir baris seragam di semua komputer)
-- [x] `.gitignore`: `cloudflared.exe`/`*.exe`, `_to_delete/`, `.pytest_cache/`
-- [x] Commit per kelompok perubahan & push ke GitHub (`fc54f9a..b816e56`)
+## Roadmap: perlu, belum dikerjakan
 
-## Tahap 3b — Fitur rombel & tahun ajaran (7 Nov 2026)
+### Prioritas tinggi (keamanan & data)
+- [ ] **Ganti password guru default** `guru123` dan buat halaman ganti password
+- [ ] **Pastikan `SECRET_KEY` di `.env` panjang dan acak** (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)
+- [ ] **Backup database terjadwal** (`pg_dump` harian ke folder lain / cloud). Saat ini belum ada backup sama sekali
+- [ ] **Ekspor nilai ke Excel/CSV** per kelas, sebelum menghapus siswa atau akhir semester
+- [ ] **Jinja autoescape** belum aktif di 3 router: teks yang diketik guru (judul, nama siswa) dirender sebagai HTML
+- [ ] **Header keamanan** (CSP, X-Content-Type-Options, frame-ancestors) lewat middleware
+- [ ] **Reset PIN siswa** satu per satu (sekarang hanya saat akun dibuat)
 
-- [x] Bug: Bulk Import mengabaikan pilihan "Rombel Tujuan" (siswa tidak masuk rombel). Sekarang langsung terdaftar
-- [x] Bug: dropdown rombel memakai ID tulisan tangan (1–9) yang tidak cocok dengan database. Sekarang diambil dari database
-- [x] Fitur baru: tombol **✕ Keluarkan** di Kelola Siswa (hapus keanggotaan rombel saja; akun & nilai tetap)
-- [x] Script `ganti_tahun_ajaran.py`: 2026/2027 jadi aktif, keanggotaan rombel ikut pindah
-- [x] Diuji: bulk import ke rombel, bulk import tanpa rombel, keluarkan siswa, ganti tahun 2x (tidak dobel), leaderboard 200
-- [x] Fix error `expression 'Student' failed to locate a name` saat menjalankan `ganti_tahun_ajaran.py`: `app/models/__init__.py` kini mendaftarkan semua model
-- [x] Pelajaran error dicatat di `CLAUDE.md` (cara verifikasi + tabel error)
-- [x] Pencarian nama login siswa kembali minimal 3 huruf, hanya siswa aktif; tes `test_student_search_too_short` lulus lagi
-- [ ] Jalankan `python ganti_tahun_ajaran.py` di laptop (PostgreSQL)
-- [ ] Commit & push
+### Prioritas sedang (logika yang perlu diputuskan)
+- [ ] **Isi bank soal minimal 2x jumlah soal per siswa** supaya kombinasi soal benar-benar beragam
+- [ ] **Esai: daftar kata kunci tanpa kalimat bisa dapat nilai penuh** — guru tetap cek jawaban di halaman detail
+- [ ] **Mode ujian pengawas**: guru melihat siapa sedang mengerjakan dan pelanggarannya secara langsung
+- [ ] **Komponen nilai otomatis**: setiap ujian membuat komponen bernama judul ujian dengan bobot 100%, sehingga total bobot per tingkat lewat dari 100%. Saran: guru memilih komponen tujuan saat membuat ujian
+- [ ] **Leaderboard & rekap belum menyaring tahun ajaran aktif** (wajib sebelum fitur naik kelas)
+- [ ] **Edit** materi, soal, ujian, dan data siswa (nama/NIPD)
 
-## Tahap 3c — Desain ulang & hapus siswa (7 Nov 2026)
+### Fitur berikutnya
+- [ ] Naik kelas otomatis di akhir tahun ajaran (dengan pratinjau)
+- [ ] Hapus rombel kosong (misalnya VII-A dari data awal)
 
-- [x] Sistem desain bersama: 3 layout Jinja, `iw.css`, ikon SVG, logo baru (tanpa emoji)
-- [x] Font diganti ke pasangan minimalis: Raleway Bold (judul) + Montserrat (isi); dua font saja
-- [x] Latar 3D Three.js: globe jaringan (login & guru), aliran data (siswa); redup di HP, diam bila "kurangi gerak"
-- [x] 23 halaman ditulis ulang; copy dibersihkan dari gaya AI
-- [x] Tombol **Keluar** (sebelumnya tidak ada logout sama sekali)
-- [x] Hapus siswa permanen: halaman konfirmasi + jumlah data terkait + ketik nama + transaksi tunggal
-- [x] Bug: login PIN rusak bila driver diganti ke psycopg 3 (`student_id` teks) — diperbaiki
-- [x] Bug: link "Hasil" di halaman Ujian tercetak di luar kartu — dirapikan
-- [x] Diuji di PostgreSQL 16 + psycopg2 + migrasi Alembic asli: 0 form berubah di 19 halaman, 24/24 uji alur lulus, tanpa error console, tanpa scroll menyamping di 3 ukuran layar
-- [ ] Commit & push
-
-## Tahap 4 — Perapihan struktur folder (berikutnya)
-
-- [x] Template lama `teacher/login.html`, `student/login.html`, `teacher/dashboard.html`, `student/base.html` dipindah ke `_to_delete/`
-- [ ] Folder kosong `app/templates/components/` (hapus manual)
-- [ ] Script lepas `app/add_student.py`, `app/add_achievements.py`, `seed_rombel.py`: satukan ke folder `scripts/`
-- [ ] `teacher.py` (±500 baris) dipecah per fitur
-- [ ] Hapus isi `_to_delete/` setelah dicek
-
-## Keputusan yang menunggu Anda
-
-- [x] Rombel lama **VII-A**: dikosongkan manual lewat tombol Keluarkan (rombelnya sendiri dihapus di Tahap 4)
-- [x] Tahun ajaran → 2026/2027
-- [x] Pencarian nama login: minimal 3 huruf, siswa aktif saja
-- [ ] Sistem pindah rombel: pindah massal (B) + naik kelas otomatis (C) — menunggu konfirmasi rancangan
+### Kerapian & operasional
+- [ ] Pindahkan script lepas (`seed_rombel.py`, `ganti_tahun_ajaran.py`, `app/add_*.py`) ke folder `scripts/`
+- [ ] Pecah `teacher.py` (±600 baris) per fitur
+- [ ] Simpan three.js dan CSS Tailwind di `app/static` agar web tetap jalan tanpa internet (Tailwind CDN tidak disarankan untuk produksi)
+- [ ] Tes otomatis untuk alur ujian & keamanan (sekarang 4 tes dasar)
+- [ ] Hapus isi `_to_delete/` dan folder kosong `app/templates/components/`

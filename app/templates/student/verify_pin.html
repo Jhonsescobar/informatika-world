@@ -9,7 +9,11 @@
 <h1 class="h-display">Halo, <em>{{ student_name|e }}</em></h1>
 <p class="lead">Masukkan PIN 4 angka dari gurumu.</p>
 
-<form action="/auth/student/verify" method="POST" class="mt-10 flex flex-col gap-5 max-w-xs">
+{% set error = request.query_params.get('error') %}
+{% if error %}
+<div class="notice notice-danger mt-8 max-w-xs" role="alert">{{ icon('alert') }}<span>{% if error == 'terkunci' %}PIN salah 5 kali. Tunggu 10 menit atau minta bantuan gurumu.{% else %}PIN salah. Coba lagi.{% endif %}</span></div>
+{% endif %}
+<form action="/auth/student/verify" method="POST" class="mt-8 flex flex-col gap-5 max-w-xs">
   <input type="hidden" name="student_id" value="{{ student_id }}">
   <label class="field">
     <span class="label">PIN</span>

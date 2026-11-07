@@ -1,0 +1,17 @@
+{# Komponen pengaman: watermark nama + tameng penutup layar. Pakai bersama static/js/iw-guard.js #}
+{% macro watermark(nama, waktu) -%}
+<div class="watermark" aria-hidden="true">
+  {%- for _ in range(60) %}<span>{{ nama|e }} · {{ waktu }}</span>{% endfor -%}
+</div>
+{%- endmacro %}
+
+{% macro shield(judul, pesan, tombol, terbuka=False) -%}
+<div class="shield" id="guard-shield" {{ '' if terbuka else 'hidden' }} role="alertdialog" aria-modal="true" aria-labelledby="guard-shield-title">
+  <div class="shield-box">
+    <p class="eyebrow" style="color:var(--amber)">Mode terkunci</p>
+    <h2 class="h-display" id="guard-shield-title" style="font-size:1.9rem">{{ judul }}</h2>
+    <p class="mt-4" id="guard-shield-text">{{ pesan }}</p>
+    <button type="button" class="btn btn-primary mt-8" id="guard-resume">{{ tombol }}</button>
+  </div>
+</div>
+{%- endmacro %}

@@ -8,7 +8,11 @@
 <h1 class="h-display">Masuk sebagai <em>guru</em></h1>
 <p class="lead">Pakai email dan password akun guru.</p>
 
-<form action="/auth/teacher/login" method="post" class="mt-10 flex flex-col gap-5 max-w-sm">
+{% set error = request.query_params.get('error') %}
+{% if error %}
+<div class="notice notice-danger mt-8 max-w-sm" role="alert">{{ icon('alert') }}<span>{% if error == 'terkunci' %}Terlalu banyak percobaan salah. Coba lagi dalam 10 menit.{% else %}Email atau password salah.{% endif %}</span></div>
+{% endif %}
+<form action="/auth/teacher/login" method="post" class="mt-8 flex flex-col gap-5 max-w-sm">
   <label class="field">
     <span class="label">Email</span>
     <input id="email" name="email" type="email" required autocomplete="username" placeholder="guru@sekolah.sch.id" class="input">

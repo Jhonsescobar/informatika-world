@@ -1,0 +1,102 @@
+{# Detail satu sesi ujian: jawaban per soal, koreksi nilai esai, dan linimasa aktivitas siswa #}
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'exams' %}
+{% set ganti_total = baris|sum(attribute='ganti') %}
+{% block title %}{{ siswa.name|e }} · {{ exam.title }}{% endblock %}
+{% block back %}<a href="/teacher/exams/{{ exam.id }}/results" class="back-link">{{ icon('arrow-left') }}Hasil {{ exam.title }}</a>{% endblock %}
+{% block eyebrow %}Detail & log aktivitas{% endblock %}
+{% block heading %}{{ siswa.name|e }}{% endblock %}
+{% block lead %}<p class="lead">{{ exam.title }} · mulai {{ sesi.started_at.astimezone().strftime('%d/%m/%Y %H:%M') if sesi.started_at else '–' }}</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  {% if tersimpan %}<div class="notice" role="status">{{ icon('check') }}<span>Nilai esai disimpan. Skor sesi dan rekap nilai sudah dihitung ulang.</span></div>{% endif %}
+
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div class="panel stat stat-light"><span class="stat-label">Nilai</span><span class="stat-value">{{ sesi.score if sesi.score is not none else '–' }}<span class="text-2xl" style="color:#315650">/{{ maks }}</span></span></div>
+    <div class="panel stat"><span class="stat-label">Durasi</span><span class="stat-value">{% if durasi is not none %}{{ durasi // 60 }}<span class="text-2xl dim">m</span> {{ durasi % 60 }}<span class="text-2xl dim">d</span>{% else %}–{% endif %}</span></div>
+    <div class="panel stat"><span class="stat-label">Ganti jawaban</span><span class="stat-value">{{ ganti_total }}</span></div>
+    <div class="panel stat"><span class="stat-label">Pelanggaran</span><span class="stat-value" {% if jml_pelanggaran %}style="color:var(--danger)"{% endif %}>{{ jml_pelanggaran }}</span></div>
+  </div>
+
+  <section class="stack" aria-label="Jawaban per soal">
+    {% for b in baris %}
+    <article class="panel" id="soal-{{ b.q.id }}">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <p class="q-num">SOAL {{ b.no }}{% if b.q.question_type == 'esai' %} · ESAI{% endif %}</p>
+        <span class="flex flex-wrap gap-2">
+          {% if b.detik is not none %}<span class="chip">dijawab menit ke-{{ (b.detik // 60) + 1 }}</span>{% endif %}
+          {% if b.ganti %}<span class="chip chip-amber">ganti {{ b.ganti }}×</span>{% endif %}
+          {% if b.dilihat > 1 %}<span class="chip">dilihat {{ b.dilihat }}×</span>{% endif %}
+        </span>
+      </div>
+      <p class="q-text">{{ b.q.text }}</p>
+
+      {% if b.q.question_type == 'esai' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div>
+            <p class="label">Jawaban siswa</p>
+            <p class="mt-2 text-white" style="white-space:pre-wrap">{{ (b.a.answer_text if b.a and b.a.answer_text else 'Tidak dijawab')|e }}</p>
+          </div>
+          <div>
+            <p class="label">Kunci</p>
+            <p class="mt-2 muted" style="white-space:pre-wrap">{{ b.q.answer_key|e }}</p>
+            {% if b.q.keywords %}<p class="mt-2 text-sm" style="color:var(--amber)">Kata kunci: {{ b.q.keywords|e }}</p>{% endif %}
+          </div>
+        </div>
+        {% if b.a %}
+        <div class="mt-5 flex flex-wrap items-center gap-2 text-sm">
+          <span class="chip {{ 'chip-teal' if (b.a.similarity or 0) >= 0.8 else ('chip-amber' if (b.a.similarity or 0) >= 0.25 else 'chip-danger') }}">kemiripan {{ ((b.a.similarity or 0) * 100)|round|int }}%</span>
+          {% for k in b.analisis.cocok %}<span class="chip chip-teal">{{ k|e }}</span>{% endfor %}
+          {% for k in b.analisis.kurang %}<span class="chip" style="text-decoration:line-through">{{ k|e }}</span>{% endfor %}
+        </div>
+        <form action="/teacher/answers/{{ b.a.id }}/score" method="POST" class="mt-5 flex flex-wrap items-end gap-3">
+          <label class="field" style="width:200px">
+            <span class="label">Poin (maks {{ b.q.points }})</span>
+            <input type="number" name="points" step="0.5" min="0" max="{{ b.q.points }}" class="input"
+                   value="{{ b.a.manual_points if b.a.manual_points is not none else '' }}" placeholder="otomatis: {{ b.a.auto_points }}">
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm">Simpan koreksi</button>
+          <span class="text-xs dim">{% if b.a.manual_points is not none %}Dikoreksi guru. Kosongkan lalu simpan untuk kembali ke nilai otomatis ({{ b.a.auto_points }}).{% else %}Nilai otomatis {{ b.a.auto_points }} poin.{% endif %}</span>
+        </form>
+        {% endif %}
+      {% else %}
+        <div class="flex flex-wrap gap-2 text-sm">
+          {% if b.opsi %}
+          <span class="chip {{ 'chip-teal' if b.opsi.is_correct else 'chip-danger' }}" style="font-size:13px">Dijawab: {{ b.opsi.text|e }}</span>
+          {% else %}<span class="chip chip-danger" style="font-size:13px">Tidak dijawab</span>{% endif %}
+          {% if b.benar and (not b.opsi or not b.opsi.is_correct) %}<span class="chip" style="font-size:13px">Kunci: {{ b.benar.text|e }}</span>{% endif %}
+        </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </section>
+
+  <section class="panel panel-tight" aria-labelledby="judul-log">
+    <div class="panel-head px-6 pt-6 mb-2">
+      <div>
+        <h2 class="h-section" id="judul-log">Linimasa aktivitas</h2>
+        <p class="panel-note">Urutan klik dan tap siswa selama ujian, termasuk pelanggaran (merah).</p>
+      </div>
+      <span class="chip">{{ linimasa|length }} kejadian</span>
+    </div>
+    <ol class="rows" style="max-height:520px;overflow-y:auto">
+      {% for waktu, jenis, e in linimasa %}
+      {% set pelanggaran = e is none %}
+      <li class="row" style="padding-top:10px;padding-bottom:10px">
+        <span class="mono text-xs dim" style="width:70px">{{ waktu.astimezone().strftime('%H:%M:%S') if waktu else '' }}</span>
+        <span class="row-main text-sm" {% if pelanggaran %}style="color:var(--danger)"{% endif %}>
+          {{ nama_kejadian.get(jenis, jenis) }}
+          {% if e and e.question_id and soal.get(e.question_id) %}<span class="dim"> · soal {{ (baris|selectattr('q.id', 'equalto', e.question_id)|map(attribute='no')|first) or '' }}</span>{% endif %}
+          {% if e and e.kind == 'pilih' and opsi.get(e.option_id) %}<span class="dim"> → {{ opsi[e.option_id].text|e|truncate(60) }}</span>{% endif %}
+          {% if e and e.kind == 'esai' %}<span class="dim"> → {{ (e.detail or '')|length }} huruf</span>{% endif %}
+          {% if e and e.kind in ('mulai', 'kirim') and e.detail %}<span class="dim"> · {{ e.detail|e }}</span>{% endif %}
+        </span>
+      </li>
+      {% else %}
+      <li class="p-6"><div class="empty">Belum ada aktivitas tercatat (sesi dari sebelum fitur log dipasang).</div></li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>
+{% endblock %}

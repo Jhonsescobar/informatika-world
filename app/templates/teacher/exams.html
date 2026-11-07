@@ -21,11 +21,13 @@
             {% if exam.is_published %}<span class="chip chip-teal chip-dot">Terbit</span>{% else %}<span class="chip chip-amber chip-dot">Draf</span>{% endif %}
             <span>Kelas {{ exam.class_target }}</span>
             <span>{{ exam.duration_minutes }} menit</span>
+            {% if exam.question_count %}<span class="chip chip-teal">{{ exam.question_count }} soal acak / siswa</span>{% endif %}
             <span>Soal {{ 'diacak' if exam.randomize_questions else 'berurutan' }}</span>
             <span>Opsi {{ 'diacak' if exam.randomize_options else 'tetap' }}</span>
           </p>
         </div>
         <div class="row-actions">
+          {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber chip-dot" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
           <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil</a>
           <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
             <button type="submit" class="btn btn-sm {{ 'btn-ghost' if exam.is_published else 'btn-primary' }}">{{ 'Tarik dari siswa' if exam.is_published else 'Terbitkan' }}</button>
@@ -62,6 +64,9 @@
           </select></label>
         <label class="field"><span class="label">Durasi (menit)</span>
           <input type="number" name="duration_minutes" value="15" min="1" required class="input"></label>
+        <label class="field md:col-span-2"><span class="label">Soal per siswa (opsional)</span>
+          <input type="number" name="question_count" min="1" class="input" placeholder="Kosongkan = semua soal di bank">
+          <span class="text-xs dim">Contoh: bank berisi 40 soal, isi 20. Tiap siswa mendapat 20 soal acak yang berbeda dari temannya.</span></label>
       </div>
       <div class="flex flex-wrap gap-6">
         <label class="check"><input type="checkbox" name="randomize_questions">Acak urutan soal</label>
