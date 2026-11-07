@@ -1,0 +1,51 @@
+<!-- app/templates/teacher/student_pins.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar PIN Siswa - INFORMATIKA WORLD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+    <nav class="bg-slate-800 p-4 shadow-lg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-cyan-400">INFORMATIKA WORLD</h1>
+        <a href="/teacher/students" class="text-sm text-indigo-400 hover:underline">← Kembali ke Kelola Siswa</a>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <div class="bg-green-900/30 border border-green-500 p-4 rounded-lg mb-6">
+            <h2 class="text-xl font-bold text-green-400">✅ Berhasil! {{ students|length }} siswa dibuat</h2>
+            <p class="text-sm text-slate-300 mt-1">⚠️ <strong>PENTING:</strong> Catat PIN ini atau print halaman ini. PIN tidak akan ditampilkan lagi!</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-lg overflow-hidden shadow-lg mb-6">
+            <table class="w-full text-left">
+                <thead class="bg-slate-700">
+                    <tr>
+                        <th class="p-3 w-12">No</th>
+                        <th class="p-3">Nama Siswa</th>
+                        <th class="p-3 w-32 text-center">PIN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr class="border-b border-slate-700">
+                        <td class="p-3 text-slate-500">{{ loop.index }}</td>
+                        <td class="p-3 font-medium">{{ s.name }}</td>
+                        <td class="p-3 text-center">
+                            <span class="font-mono font-bold text-2xl text-yellow-400 bg-slate-900 px-3 py-1 rounded">{{ s.pin }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex gap-4">
+            <a href="/teacher/students" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded">✅ Saya Sudah Catat PIN</a>
+            <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded">🖨️ Print Halaman Ini</button>
+        </div>
+    </div>
+</body>
+</html>

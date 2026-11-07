@@ -17,6 +17,8 @@
             <span class="text-white font-bold">📚 Materi</span>
             <a href="/teacher/question-banks" class="text-indigo-400 hover:underline">🧠 Bank Soal</a>
             <a href="/teacher/exams" class="text-indigo-400 hover:underline">📝 Ujian</a>
+            <a href="/teacher/grades" class="text-indigo-400 hover:underline">⚖️ Nilai</a>
+            <a href="/teacher/students" class="text-indigo-400 hover:underline">👨‍🎓 Siswa</a>
         </div>
     </nav>
 
@@ -57,13 +59,18 @@
         <h3 class="text-lg font-semibold text-indigo-400 mb-4">Materi Tersedia</h3>
         <div class="space-y-4">
             {% for mat in materials %}
-            <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-cyan-500 shadow">
-                <h4 class="text-lg font-bold">{{ mat.title }}</h4>
-                <p class="text-sm text-slate-400 mt-1">Kelas {{ mat.class_target }} | Dibuat: {{ mat.created_at.strftime('%d %b %Y') }}</p>
-                <p class="mt-2 text-slate-300">{{ mat.description }}</p>
+            <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-cyan-500 shadow flex justify-between items-start">
+                <div class="flex-1">
+                    <h4 class="text-lg font-bold">{{ mat.title }}</h4>
+                    <p class="text-sm text-slate-400 mt-1">Kelas {{ mat.class_target }} | Dibuat: {{ mat.created_at.strftime('%d %b %Y') }}</p>
+                    <p class="mt-2 text-slate-300">{{ mat.description }}</p>
+                </div>
+                <form action="/teacher/materials/{{ mat.id }}/delete" method="POST" onsubmit="return confirm('Yakin hapus materi ini?');">
+                    <button type="submit" class="text-sm text-red-500 hover:underline ml-4">🗑️ Hapus</button>
+                </form>
             </div>
             {% else %}
-            <p class="text-slate-500 italic">Belum ada materi. Buat yang pertama!</p>
+            <p class="text-slate-500 italic">Belum ada materi.</p>
             {% endfor %}
         </div>
     </div>

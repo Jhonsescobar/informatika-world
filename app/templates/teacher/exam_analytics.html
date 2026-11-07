@@ -51,9 +51,7 @@
                         <span class="ml-auto font-bold text-yellow-400">Error Rate: {{ q.error_rate }}%</span>
                     </div>
                     <!-- Bar visual error rate -->
-                    <div class="w-full bg-slate-700 rounded-full h-2 mt-3">
-                        <div class="bg-red-500 h-2 rounded-full" style="width: {{ q.error_rate }}%"></div>
-                    </div>
+                    <progress class="w-full h-2 mt-3 overflow-hidden rounded-full bg-slate-700 accent-red-500" value="{{ q.error_rate }}" max="100" aria-label="Error rate {{ q.error_rate }}%"></progress>
                 </div>
                 {% else %}
                 <p class="text-slate-500 italic">Tidak ada data kesalahan.</p>

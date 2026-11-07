@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     FILE 1: app/templates/login_pilih.html
+     Halaman DEPAN login: pilih Guru atau Siswa
+     (pengganti tampilan lama yang langsung form guru)
+     ============================================================ -->
+<html lang="id">
+<head>
+  <meta charset="UTF-8">  <!-- mendukung huruf Indonesia -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <!-- responsif di HP -->
+  <title>Masuk — INFORMATIKA WORLD</title>  <!-- judul di tab browser -->
+  <!-- favicon emoji bola dunia (sekalian menghilangkan error 404 favicon.ico di log server) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8C%8D%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>  <!-- Tailwind CSS via CDN -->
+
+  <style>
+  /* ================= KUMPULAN EFEK GLOW & ANIMASI ================= */
+
+  /* ---- Tombol menu bawah (nav) ---- */
+  .nav-btn {                                    /* dasar setiap tombol menu */
+    position: relative;                         /* agar titik indikator bisa menempel */
+    display: flex;                              /* susun ikon & label */
+    flex-direction: column;                     /* ikon di atas, label di bawah */
+    align-items: center;                        /* rata tengah */
+    gap: 3px;                                   /* jarak ikon ke label */
+    padding: 6px 2px 4px;                       /* ruang napas dalam tombol */
+    color: #94a3b8;                             /* warna abu saat tidak aktif */
+    transition: all .25s ease;                  /* animasi halus saat berubah */
+    -webkit-tap-highlight-color: transparent;   /* hapus kilatan biru saat tap di HP */
+    border-radius: 12px;                        /* sudut membulat halus */
+  }
+  .nav-btn svg {                                /* ukuran ikon SVG dalam menu */
+    width: 22px;                                /* lebar ikon */
+    height: 22px;                               /* tinggi ikon */
+  }
+  /* == HURUF FLEKSIBEL: di layar sangat sempit (<360px) huruf mengecil
+     otomatis supaya label panjang seperti "Bank Soal" tetap terbaca penuh == */
+  @media (max-width: 359px) {                   /* berlaku hanya di HP kecil */
+    .nav-btn svg {                              /* ikon ikut mengecil sedikit */
+      width: 19px;                              /* lebar ikon di HP kecil */
+      height: 19px;                             /* tinggi ikon di HP kecil */
+    }
+    .nav-btn span {                             /* label menu di HP kecil */
+      font-size: 9px !important;                /* huruf lebih kecil agar muat */
+      letter-spacing: -0.3px;                   /* jarak antar-huruf dirapatkan */
+    }
+  }
+  .nav-btn:hover {                              /* ===== SAAT MOUSE DIARAHKAN ===== */
+    color: #38bdf8;                             /* teks & ikon jadi biru langit */
+    transform: translateY(-3px);                /* tombol naik sedikit */
+    filter: drop-shadow(0 0 10px rgba(56,189,248,.85)); /* ==== EFEK GLOW ==== */
+  }
+  .nav-btn:active {                             /* ===== SAAT DIKLIK / DITAP ===== */
+    transform: scale(.86);                      /* tombol mengecil sesaat */
+    filter: drop-shadow(0 0 16px rgba(56,189,248,1));   /* glow paling terang */
+  }
+  .nav-btn.nav-active {                         /* menu halaman yang sedang terbuka */
+    color: #38bdf8;                             /* selalu biru */
+    animation: navPulse 2.4s ease-in-out infinite; /* denyut glow lembut terus-menerus */
+  }
+  .nav-btn.nav-active::before {                 /* titik indikator di atas ikon aktif */
+    content: '';                                /* elemen murni CSS */
+    position: absolute;                         /* menempel di tombol */
+    top: -6px;                                  /* posisinya di atas */
+    width: 20px;                                /* lebar titik */
+    height: 3px;                                /* tinggi titik */
+    border-radius: 99px;                        /* ujung membulat */
+    background: #38bdf8;                        /* warna biru langit */
+    box-shadow: 0 0 10px #38bdf8;               /* titik ikut bersinar */
+  }
+  @keyframes navPulse {                         /* gerakan denyut: redup-terang-redup */
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(56,189,248,.45)); }  /* redup */
+    50%      { filter: drop-shadow(0 0 14px rgba(56,189,248,1)); }   /* terang */
+  }
+
+  /* ---- Kartu pilihan Guru/Siswa di halaman login ---- */
+  .glow-card {                                  /* kartu dasar */
+    transition: all .3s ease;                   /* animasi halus semua perubahan */
+    border: 1px solid rgba(255,255,255,.08);    /* garis tepi kaca tipis */
+  }
+  .glow-card:hover {                            /* saat mouse diarahkan */
+    transform: translateY(-6px) scale(1.02);    /* naik + membesar sedikit */
+    border-color: rgba(56,189,248,.6);          /* garis tepi berubah biru */
+    box-shadow: 0 0 28px rgba(56,189,248,.35),  /* ==== GLOW LUAR ==== */
+                inset 0 0 22px rgba(56,189,248,.07); /* pantulan cahaya di dalam */
+  }
+  .glow-card:active {                           /* saat diklik */
+    transform: scale(.97);                      /* mengecil sesaat (rasa 'ditekan') */
+  }
+  .glow-card .ikon-bulat {                      /* lingkaran pembungkus ikon kartu */
+    transition: all .3s ease;                   /* ikut beranimasi */
+  }
+  .glow-card:hover .ikon-bulat {                /* ikon ikut bersinar saat hover */
+    box-shadow: 0 0 18px rgba(56,189,248,.55);  /* glow pada lingkaran ikon */
+    transform: rotate(-6deg);                   /* miring sedikit, kesan hidup */
+  }
+
+  /* ---- Tombol Masuk ---- */
+  .btn-masuk {                                  /* tombol submit login */
+    transition: all .25s ease;                  /* animasi halus */
+  }
+  .btn-masuk:hover {                            /* saat mouse diarahkan */
+    box-shadow: 0 0 22px rgba(56,189,248,.65);  /* glow biru di sekeliling */
+    transform: translateY(-2px);                /* naik sedikit */
+    filter: brightness(1.1);                    /* sedikit lebih terang */
+  }
+  .btn-masuk:active {                           /* saat diklik */
+    transform: scale(.96);                      /* mengecil sesaat */
+  }
+
+  /* ---- Kotak isian (input) ---- */
+  .input-glow {                                 /* gaya semua kotak isian */
+    transition: all .25s ease;                  /* animasi halus */
+  }
+  .input-glow:focus {                           /* saat diklik / jadi fokus */
+    border-color: #38bdf8;                      /* garis tepi biru */
+    box-shadow: 0 0 0 3px rgba(56,189,248,.25), /* cincin cahaya biru */
+                0 0 14px rgba(56,189,248,.30);  /* glow lembut */
+    outline: none;                              /* hapus garis bawaan browser */
+  }
+
+  /* ---- Judul brand bersinar ---- */
+  .glow-text {                                  /* teks yang bersinar */
+    text-shadow: 0 0 18px rgba(56,189,248,.55); /* bayangan cahaya biru */
+  }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 antialiased min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+  <!-- dekorasi latar: dua bola cahaya biru yang blur -->
+  <div class="absolute -top-24 -left-24 w-72 h-72 bg-sky-500/20 rounded-full blur-3xl"></div>
+  <div class="absolute -bottom-24 -right-24 w-72 h-72 bg-blue-600/20 rounded-full blur-3xl"></div>
+
+  <main class="w-full max-w-md relative">
+    <!-- kepala: logo bola dunia + nama aplikasi -->
+    <div class="text-center mb-8">
+      <div class="mx-auto w-16 h-16 rounded-2xl bg-slate-900 border border-sky-400/30 flex items-center justify-center mb-4" style="box-shadow:0 0 24px rgba(56,189,248,.35)">
+        <!-- ikon bola dunia (SVG) -->
+        <svg class="w-9 h-9 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold tracking-wide">INFORMATIKA <span class="text-sky-400 glow-text">WORLD</span></h1>
+      <p class="text-slate-400 text-sm mt-2">Silakan pilih jenis login untuk melanjutkan</p>
+    </div>
+
+    <!-- dua kartu pilihan: guru & siswa -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- ===== kartu GURU (biru) ===== -->
+      <a href="/login/guru" class="glow-card block bg-slate-900/80 backdrop-blur rounded-2xl p-6 text-center">
+        <div class="ikon-bulat mx-auto w-14 h-14 rounded-full bg-sky-500/10 border border-sky-400/30 flex items-center justify-center">
+          <!-- ikon tas kerja (guru) -->
+          <svg class="w-7 h-7 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v1m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+        </div>
+        <h2 class="text-white font-semibold mt-4">Login Guru</h2>
+        <p class="text-slate-400 text-xs mt-1">Masuk dengan Email &amp; Password</p>
+        <span class="inline-flex items-center gap-1 text-sky-400 text-xs font-medium mt-4">
+          Masuk sebagai Guru
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </span>
+      </a>
+
+      <!-- ===== kartu SISWA (hijau) ===== -->
+      <a href="/login/siswa" class="glow-card block bg-slate-900/80 backdrop-blur rounded-2xl p-6 text-center">
+        <div class="ikon-bulat mx-auto w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center">
+          <!-- ikon topi wisuda (siswa) -->
+          <svg class="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/>
+          </svg>
+        </div>
+        <h2 class="text-white font-semibold mt-4">Login Siswa</h2>
+        <p class="text-slate-400 text-xs mt-1">Masuk dengan Nama &amp; PIN</p>
+        <span class="inline-flex items-center gap-1 text-emerald-400 text-xs font-medium mt-4">
+          Masuk sebagai Siswa
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </span>
+      </a>
+    </div>
+
+    <!-- catatan kaki -->
+    <p class="text-center text-slate-500 text-xs mt-8">LMS Informatika SMP — Kelas VII, VIII &amp; IX</p>
+  </main>
+</body>
+</html>

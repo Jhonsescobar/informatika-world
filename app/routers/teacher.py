@@ -1,6 +1,6 @@
 # app/routers/teacher.py
 # Router khusus untuk mengelola halaman Guru (CRUD Materi, dll)
-
+import random
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
@@ -14,13 +14,15 @@ from app.utils.deps import require_teacher
 from app.models.grade import ScoreComponent, Score
 from app.models.exam import Exam, ExamSession, ExamAnswer
 
-from app.models.academic import SchoolClass, Rombel, Enrollment
+from app.models.academic import SchoolClass, Rombel, Enrollment, AcademicYear
 # Mengimpor model Kelas, Rombel, dan Enrollment untuk Grade Engine
 
 from app.models.student import Student
 # Mengimpor model Siswa untuk Grade Engine
 # Mengimpor model Grade dan ExamSession
 # Mengimpor satpam khusus guru
+from app.models.student import Student
+from app.utils.security import hash_password
 
 from app.models.user import User
 from app.models.material import Material
@@ -412,3 +414,91 @@ async def delete_bank(bank_id: int, db: Session = Depends(get_db), user=Depends(
         db.commit()
         
     return RedirectResponse(url="/teacher/question-banks", status_code=303)
+
+# --- BULK IMPORT SISWA + AUTO PIN ---
+@router.post("/students/bulk-create")
+async def bulk_create_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    names_text = form.get("names_text") # Ambil teks dari textarea
+    
+    # Pisahkan teks berdasarkan baris baru (enter)
+    names = [n.strip() for n in names_text.split("\n") if n.strip()]
+    
+    created_students = []
+    for name in names:
+        # Generate PIN 4 digit random (1000-9999)
+        pin = str(random.randint(1000, 9999))
+        pin_hash = hash_password(pin)
+        
+        new_student = Student(
+            name=name,
+            nipd=None, # NIPD bisa diisi nanti
+            pin_hash=pin_hash,
+            is_active=True
+        )
+        db.add(new_student)
+        db.commit()
+        db.refresh(new_student)
+        
+        # Simpan nama + PIN plain text untuk ditampilkan ke guru
+        created_students.append({"name": name, "pin": pin})
+    
+    # Render halaman khusus untuk menampilkan hasil PIN
+    template = templates_env.get_template("teacher/student_pins.html")
+    html_content = template.render(request=request, students=created_students, user=user)
+    return HTMLResponse(content=html_content)
+
+# --- KELOLA SISWA ---
+@router.get("/students", response_class=HTMLResponse)
+async def list_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    students = db.query(Student).order_by(Student.name).all()
+    template = templates_env.get_template("teacher/students.html")
+    html_content = template.render(request=request, students=students, user=user)
+    return HTMLResponse(content=html_content)
+
+@router.post("/students/create")
+async def create_student(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    pin_hash = hash_password(form.get("pin"))
+    new_student = Student(
+        name=form.get("name"),
+        nipd=form.get("nipd"),
+        pin_hash=pin_hash,
+        is_active=True
+    )
+    db.add(new_student)
+    db.commit()
+    return RedirectResponse(url="/teacher/students", status_code=303)
+
+# ============================================
+# COMPLETE CRUD - DELETE ROUTES
+# ============================================
+
+# --- DELETE MATERI ---
+@router.post("/materials/{material_id}/delete")
+async def delete_material(material_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    material = db.query(Material).filter(Material.id == material_id).first()
+    if material:
+        db.delete(material)
+        db.commit()
+    return RedirectResponse(url="/teacher/materials", status_code=303)
+
+# --- DELETE KOMPONEN NILAI ---
+@router.post("/grades/components/{comp_id}/delete")
+async def delete_component(comp_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    comp = db.query(ScoreComponent).filter(ScoreComponent.id == comp_id).first()
+    if comp:
+        # Hapus semua nilai di komponen ini dulu (Foreign Key Constraint)
+        db.query(Score).filter(Score.component_id == comp_id).delete(synchronize_session=False)
+        db.delete(comp)
+        db.commit()
+    return RedirectResponse(url="/teacher/grades", status_code=303)
+
+# --- TOGGLE ACTIVE SISWA (Soft Delete) ---
+@router.post("/students/{student_id}/toggle-active")
+async def toggle_student_active(student_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if student:
+        student.is_active = not student.is_active
+        db.commit()
+    return RedirectResponse(url="/teacher/students", status_code=303)

@@ -4,6 +4,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
 from app.database import Base
+from sqlalchemy.orm import relationship  # alat untuk membuat relasi antar model
 
 class Student(Base):
     __tablename__ = "students"
@@ -26,3 +27,4 @@ class Student(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    enrollments = relationship("Enrollment", back_populates="student")

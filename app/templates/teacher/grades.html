@@ -39,15 +39,20 @@
         </div>
 
         <div class="space-y-4 mb-8">
-            {% for comp in components %}
-            <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-cyan-500 shadow flex justify-between">
-                <div>
-                    <h4 class="font-bold">{{ comp.name }}</h4>
-                    <p class="text-sm text-slate-400">Kelas {{ comp.class_target }}</p>
-                </div>
-                <span class="text-lg font-bold text-cyan-400">{{ comp.weight }}%</span>
+        {% for comp in components %}
+        <div class="bg-slate-800 p-4 rounded-lg border-l-4 border-cyan-500 shadow flex justify-between items-center">
+            <div>
+                <h4 class="font-bold">{{ comp.name }}</h4>
+                <p class="text-sm text-slate-400">Kelas {{ comp.class_target }}</p>
             </div>
-            {% endfor %}
+            <div class="flex items-center gap-4">
+                <span class="text-lg font-bold text-cyan-400">{{ comp.weight }}%</span>
+                <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Yakin hapus komponen ini? Semua nilai terkait akan terhapus!');">
+                    <button type="submit" class="text-sm text-red-500 hover:underline">🗑️ Hapus</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
         </div>
 
         <h3 class="text-lg font-semibold text-indigo-400 mb-4">Lihat Rekap Nilai Akhir</h3>
