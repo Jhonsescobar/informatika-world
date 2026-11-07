@@ -25,6 +25,18 @@ app = FastAPI(
 )
 # Membuat instance aplikasi FastAPI
 
+# --- 1b. HEADER KEAMANAN di setiap respons ---
+@app.middleware("http")
+async def header_keamanan(request, call_next):
+    respon = await call_next(request)
+    respon.headers.setdefault("X-Content-Type-Options", "nosniff")      # browser tidak menebak jenis file
+    respon.headers.setdefault("X-Frame-Options", "DENY")                # web tidak bisa disisipkan di situs lain (clickjacking)
+    respon.headers.setdefault("Referrer-Policy", "same-origin")
+    respon.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.url.path.startswith(("/teacher", "/student")):
+        respon.headers.setdefault("Cache-Control", "no-store")          # halaman berisi nilai tidak tersimpan di cache
+    return respon
+
 # --- 2. KONFIGURASI FOLDER STATIS ---
 BASE_DIR = Path(__file__).resolve().parent
 # Mendapatkan jalur absolut folder 'app'

@@ -15,7 +15,8 @@ from app.database import get_db
 from app.utils.deps import require_student
 from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
-from app.services.penilaian import id_soal_sesi, total_poin_sesi, simpan_nilai_tertinggi
+from app.services.penilaian import id_soal_sesi, total_poin_sesi
+from app.services.rekap import rekap_kelas, BATAS_REMEDIAL as BATAS_REMEDIAL_REKAP
 from app.services.esai import nilai_esai
 import json
 from app.models.material import Material
@@ -23,7 +24,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func
 from app.models.question import Question, QuestionOption
 from app.models.academic import SchoolClass, Rombel, Enrollment, AcademicYear
-from app.models.grade import ScoreComponent, Score
 from app.models.achievement import Achievement, StudentAchievement
 
 try:
@@ -279,20 +279,6 @@ async def submit_exam(session_id: int, request: Request, db: Session = Depends(g
         db.add(ExamEvent(session_id=session.id, kind="kirim", detail="otomatis" if form.get("otomatis") else None))
         db.commit()
 
-        score_comp = db.query(ScoreComponent).filter(ScoreComponent.name == exam.title).first()
-        
-        if not score_comp:
-            score_comp = ScoreComponent(
-                name=exam.title,
-                weight=100,
-                class_target=exam.class_target,
-                teacher_id=exam.teacher_id
-            )
-            db.add(score_comp)
-            db.commit()
-            db.refresh(score_comp)
-            
-        simpan_nilai_tertinggi(db, exam, student_id)
         db.commit()
         # -------------------------------------------
         
@@ -442,50 +428,21 @@ async def material_read(material_id: int, request: Request, db: Session = Depend
 async def leaderboard_page(request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
     try:
         student_id = int(user.get("sub"))
-        student = db.query(Student).filter(Student.id == student_id).first()
-        enrollment = db.query(Enrollment).filter(Enrollment.student_id == student_id).first()
-        
-        if not enrollment:
-            template = templates_env.get_template("student/leaderboard.html")
+        kelas = tingkat_siswa(db, student_id)
+        template = templates_env.get_template("student/leaderboard.html")
+        if not kelas:
             return HTMLResponse(content=template.render(request=request, user=user, rombel_name="–", class_name="–",
                                                         rombel_scores=[], angkatan_scores=[], active_page="leaderboard"))
-            
-        rombel = db.query(Rombel).filter(Rombel.id == enrollment.rombel_id).first()
-        kelas = db.query(SchoolClass).filter(SchoolClass.id == rombel.class_id).first()
-        
-        rombel_enrollments = db.query(Enrollment).filter(Enrollment.rombel_id == rombel.id).all()
-        rombel_scores = []
-        for enr in rombel_enrollments:
-            s = db.query(Student).filter(Student.id == enr.student_id).first()
-            components = db.query(ScoreComponent).filter(ScoreComponent.class_target == kelas.class_name).all()
-            total_score = 0.0
-            for comp in components:
-                score_entry = db.query(Score).filter(Score.student_id == s.id, Score.component_id == comp.id).first()
-                val = score_entry.score_value if score_entry else 0
-                total_score += (val * comp.weight / 100)
-            rombel_scores.append({"name": s.name, "score": round(total_score, 2)})
-        rombel_scores.sort(key=lambda x: x["score"], reverse=True)
-        
-        all_rombels_in_class = db.query(Rombel).filter(Rombel.class_id == kelas.id).all()
-        rombel_ids = [r.id for r in all_rombels_in_class]
-        all_enrollments = db.query(Enrollment).filter(Enrollment.rombel_id.in_(rombel_ids)).all()
-        angkatan_scores = []
-        for enr in all_enrollments:
-            s = db.query(Student).filter(Student.id == enr.student_id).first()
-            components = db.query(ScoreComponent).filter(ScoreComponent.class_target == kelas.class_name).all()
-            total_score = 0.0
-            for comp in components:
-                score_entry = db.query(Score).filter(Score.student_id == s.id, Score.component_id == comp.id).first()
-                val = score_entry.score_value if score_entry else 0
-                total_score += (val * comp.weight / 100)
-            angkatan_scores.append({"name": s.name, "score": round(total_score, 2)})
-        angkatan_scores.sort(key=lambda x: x["score"], reverse=True)
-        
-        template = templates_env.get_template("student/leaderboard.html")
+        # Sumber nilai sama persis dengan rekap guru (nilai akhir tahun ajaran aktif)
+        rekap = rekap_kelas(db, kelas)
+        milik = next((r for r in rekap["baris"] if r["siswa"].id == student_id), None)
+        angkatan = sorted(({"name": r["siswa"].name, "score": r["akhir"] or 0, "rombel_id": r["rombel_id"]}
+                           for r in rekap["baris"]), key=lambda x: (-x["score"], x["name"].lower()))
+        rombel_id = milik["rombel_id"] if milik else None
         html_content = template.render(
-            request=request, user=user, rombel_name=rombel.rombel_name, 
-            class_name=kelas.class_name, rombel_scores=rombel_scores, 
-            angkatan_scores=angkatan_scores, active_page="leaderboard"
+            request=request, user=user, rombel_name=milik["rombel"] if milik else "–", class_name=kelas,
+            rombel_scores=[a for a in angkatan if a["rombel_id"] == rombel_id],
+            angkatan_scores=angkatan, active_page="leaderboard"
         )
         return HTMLResponse(content=html_content)
     except Exception as e:

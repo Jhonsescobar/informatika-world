@@ -2,11 +2,11 @@
 {% from "layouts/icons.html" import icon %}
 {% set active = 'students' %}
 {% block title %}PIN Siswa Baru · Informatika World{% endblock %}
-{% block eyebrow %}Akun dibuat{% endblock %}
-{% block heading %}{{ students|length }} siswa <em>siap login</em>{% endblock %}
+{% block eyebrow %}{{ 'PIN direset' if reset else 'Akun dibuat' }}{% endblock %}
+{% block heading %}{{ students|length }} siswa <em>{{ judul or 'siap login' }}</em>{% endblock %}
 {% block content %}
 <div class="stack">
-  <div class="notice notice-amber no-print">{{ icon('alert') }}<span><strong>PIN hanya tampil sekali.</strong> Cetak atau catat sekarang. Setelah halaman ini ditutup, PIN tidak bisa dilihat lagi.</span></div>
+  <div class="notice notice-amber no-print">{{ icon('alert') }}<span><strong>PIN hanya tampil sekali.</strong>{% if reset %} PIN lama sudah tidak berlaku dan siswa yang sedang login otomatis keluar.{% endif %} Cetak atau catat sekarang. Setelah halaman ini ditutup, PIN tidak bisa dilihat lagi.</span></div>
 
   <section class="panel panel-tight overflow-x-auto" aria-label="Daftar PIN">
     <table class="table">
@@ -15,7 +15,7 @@
         {% for s in students %}
         <tr>
           <td class="mono dim">{{ loop.index }}</td>
-          <td class="text-white font-semibold">{{ s.name }}</td>
+          <td class="text-white font-semibold">{{ s.name|e }}</td>
           <td class="text-right"><span class="pin">{{ s.pin }}</span></td>
         </tr>
         {% endfor %}

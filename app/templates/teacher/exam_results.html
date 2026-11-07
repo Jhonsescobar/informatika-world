@@ -2,13 +2,16 @@
 {% from "layouts/icons.html" import icon %}
 {% set active = 'exams' %}
 {% set label_status = {'completed': 'Selesai', 'submitted': 'Selesai', 'expired': 'Waktu habis', 'active': 'Mengerjakan'} %}
-{% block title %}Hasil {{ exam.title }} · Informatika World{% endblock %}
+{% block title %}Hasil {{ exam.title|e }} · Informatika World{% endblock %}
 {% block back %}<a href="/teacher/exams" class="back-link">{{ icon('arrow-left') }}Semua ujian</a>{% endblock %}
 {% block eyebrow %}Hasil ujian · Kelas {{ exam.class_target }}{% endblock %}
-{% block heading %}{{ exam.title }}{% endblock %}
+{% block heading %}{{ exam.title|e }}{% endblock %}
 {% block lead %}
-<p class="lead">{{ rows|length }} sesi tercatat. Nilai di bawah 60% boleh mengajukan remedial; Anda yang memutuskan.</p>
-<div class="head-actions"><a href="/teacher/exams/{{ exam.id }}/analytics" class="btn btn-primary">{{ icon('chart') }}Analitik soal</a></div>
+<p class="lead">{{ rows|length }} sesi tercatat. Nilai di bawah {{ batas }}% boleh remedial: siswa bisa mengajukan, atau Anda beri langsung dengan tombol <strong>Beri remedial</strong>. Nilai tertinggi yang dipakai.</p>
+<div class="head-actions">
+  <a href="/teacher/exams/{{ exam.id }}/results/export?urut={{ urut }}" class="btn btn-ghost">{{ icon('download') }}Ekspor Excel</a>
+  <a href="/teacher/exams/{{ exam.id }}/analytics" class="btn btn-primary">{{ icon('chart') }}Analitik soal</a>
+</div>
 {% endblock %}
 {% block content %}
 <div class="stack">
@@ -37,21 +40,35 @@
   </section>
   {% endif %}
 
+  <div class="flex flex-wrap items-center gap-2" aria-label="Urutkan">
+    <span class="text-xs dim mr-1">Urutkan</span>
+    {% for kunci, label in urutan.items() %}
+    <a href="?urut={{ kunci }}" class="chip {{ 'chip-teal' if urut == kunci else '' }}" style="text-decoration:none">{{ label }}</a>
+    {% endfor %}
+  </div>
+
   <section class="panel panel-tight overflow-x-auto" aria-label="Hasil per siswa">
     <table class="table">
-      <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Detail</th></tr></thead>
+      <thead><tr><th>Siswa</th><th class="hidden md:table-cell">Rombel</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Tindakan</th></tr></thead>
       <tbody>
         {% for r in rows %}
         <tr>
           <td><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="text-white font-semibold hover:underline">{{ r.siswa.name|e }}</a>{% if r.ke > 1 %} <span class="chip chip-amber ml-1">remedial {{ r.ke - 1 }}</span>{% endif %}</td>
+          <td class="dim hidden md:table-cell">{{ r.rombel|e }}</td>
           <td><span class="chip">{{ label_status.get(r.sesi.status, r.sesi.status) }}</span></td>
-          <td class="num">{% if r.persen is not none %}<span class="chip {{ 'chip-teal' if r.persen >= 60 else 'chip-danger' }}" style="font-size:13px">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+          <td class="num">{% if r.persen is not none %}<span class="chip {{ 'chip-teal' if r.persen >= batas else 'chip-danger' }}" style="font-size:13px">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
           <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
           <td class="num dim hidden md:table-cell">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
-          <td class="num"><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="link-action is-teal">Log {{ icon('arrow-right') }}</a></td>
+          <td class="num"><div class="flex items-center justify-end gap-3">
+            {% if r.terakhir and r.persen is not none and r.persen < batas and r.sesi.status != 'active' %}
+              {% if r.remedial == 'approved' %}<span class="chip chip-teal">remedial dibuka</span>
+              {% else %}<form action="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}/remedial" method="POST"><button type="submit" class="btn btn-sm btn-primary">{{ icon('refresh') }}Beri remedial</button></form>{% endif %}
+            {% endif %}
+            <a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="link-action is-teal">Log {{ icon('arrow-right') }}</a>
+          </div></td>
         </tr>
         {% else %}
-        <tr><td colspan="6"><div class="empty my-4"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></td></tr>
+        <tr><td colspan="7"><div class="empty my-4"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></td></tr>
         {% endfor %}
       </tbody>
     </table>

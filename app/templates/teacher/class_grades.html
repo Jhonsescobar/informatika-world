@@ -1,25 +1,70 @@
 {% extends "layouts/teacher.html" %}
 {% from "layouts/icons.html" import icon %}
 {% set active = 'grades' %}
+{% set q_rombel = ('&rombel=' ~ rombel) if rombel else '' %}
 {% block title %}Rekap Kelas {{ class_target }} · Informatika World{% endblock %}
 {% block back %}<a href="/teacher/grades" class="back-link">{{ icon('arrow-left') }}Komponen nilai</a>{% endblock %}
-{% block eyebrow %}Rekap nilai akhir{% endblock %}
+{% block eyebrow %}Rekap nilai akhir{% if rekap.tahun %} · {{ rekap.tahun.year_name|e }}{% endif %}{% endblock %}
 {% block heading %}Kelas <em>{{ class_target }}</em>{% endblock %}
-{% block lead %}<p class="lead">Dihitung otomatis dari bobot komponen. Batas tuntas 75.</p>{% endblock %}
+{% block lead %}
+<p class="lead">{% if rekap.pakai_bobot %}Nilai akhir dari bobot komponen{% else %}Belum ada komponen berisi ujian, jadi nilai akhir = rata-rata semua ujian{% endif %}. Ujian yang belum dikerjakan dihitung 0. Batas tuntas {{ kkm }}.</p>
+<div class="head-actions"><a href="/teacher/grades/class/{{ class_target }}/export?urut={{ urut }}" class="btn btn-primary">{{ icon('download') }}Ekspor Excel</a></div>
+{% endblock %}
 {% block content %}
-<section class="panel panel-tight overflow-x-auto" aria-label="Nilai akhir siswa">
-  <table class="table">
-    <thead><tr><th>Nama siswa</th><th class="num">Nilai akhir</th></tr></thead>
-    <tbody>
-      {% for s in students_data %}
-      <tr>
-        <td class="text-white">{{ s.name }}</td>
-        <td class="num"><span class="chip {{ 'chip-teal' if s.final_score >= 75 else 'chip-danger' }}" style="font-size:13px">{{ s.final_score }}</span></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="2"><div class="empty my-4"><strong>Belum ada siswa</strong>Masukkan siswa ke rombel kelas {{ class_target }} dulu.</div></td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
+<div class="stack">
+  {% if rekap.pakai_bobot and rekap.total_bobot != 100 %}
+  <div class="notice notice-amber">{{ icon('info') }}<span>Bobot komponen yang sudah berisi ujian baru {{ rekap.total_bobot }}%. Nilai tetap dihitung adil (dibagi {{ rekap.total_bobot }}), tapi cek lagi pembagian bobot di <a href="/teacher/grades" class="underline">Komponen nilai</a>.</span></div>
+  {% endif %}
+  {% if rekap.pakai_bobot and rekap.lepas %}
+  <div class="notice notice-amber">{{ icon('info') }}<span>{{ rekap.lepas|length }} ujian belum masuk komponen mana pun dan tidak ikut nilai akhir: {{ rekap.lepas|map(attribute='title')|map('e')|join(', ') }}.</span></div>
+  {% endif %}
+
+  <div class="flex flex-wrap items-center gap-2" aria-label="Urutkan dan saring">
+    <span class="text-xs dim mr-1">Urutkan</span>
+    {% for kunci, label in urutan.items() %}
+    <a href="?urut={{ kunci }}{{ q_rombel }}" class="chip {{ 'chip-teal' if urut == kunci else '' }}" style="text-decoration:none" {% if urut == kunci %}aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+    {% if rombels %}
+    <span class="text-xs dim ml-3 mr-1">Rombel</span>
+    <a href="?urut={{ urut }}" class="chip {{ 'chip-teal' if not rombel else '' }}" style="text-decoration:none">Semua</a>
+    {% for r in rombels %}
+    <a href="?urut={{ urut }}&rombel={{ r.id }}" class="chip {{ 'chip-teal' if rombel == r.id|string else '' }}" style="text-decoration:none">{{ r.rombel_name|e }}</a>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <section class="panel panel-tight overflow-x-auto" aria-label="Nilai akhir siswa">
+    <table class="table">
+      <thead><tr>
+        <th class="num hidden sm:table-cell">#</th><th>Nama siswa</th><th class="hidden md:table-cell">Rombel</th>
+        {% if rekap.pakai_bobot %}
+          {% for k in rekap.komponen if rekap.per_komponen[k.id] %}<th class="num hidden sm:table-cell" title="{{ rekap.per_komponen[k.id]|map(attribute='title')|map('e')|join(', ') }}">{{ k.name|e }} <span class="dim">{{ k.weight }}%</span></th>{% endfor %}
+        {% else %}
+          {% for e in rekap.ujian %}<th class="num hidden sm:table-cell">{{ e.title|e }}</th>{% endfor %}
+        {% endif %}
+        <th class="num">Nilai akhir</th>
+      </tr></thead>
+      <tbody>
+        {% for b in rekap.baris %}
+        <tr>
+          <td class="num dim hidden sm:table-cell">{{ loop.index }}</td>
+          <td class="text-white">{{ b.siswa.name|e }}{% if b.belum %} <span class="chip chip-amber ml-1" title="Ujian yang belum dikerjakan dihitung 0">{{ b.belum }} belum</span>{% endif %}</td>
+          <td class="dim hidden md:table-cell">{{ b.rombel|e }}</td>
+          {% if rekap.pakai_bobot %}
+            {% for k in rekap.komponen if rekap.per_komponen[k.id] %}<td class="num mono hidden sm:table-cell">{{ b.komponen[k.id] }}</td>{% endfor %}
+          {% else %}
+            {% for e in rekap.ujian %}<td class="num mono hidden sm:table-cell">{{ b.ujian[e.id] if b.ujian[e.id] is not none else '–' }}</td>{% endfor %}
+          {% endif %}
+          <td class="num">{% if b.akhir is not none %}<span class="chip {{ 'chip-teal' if b.tuntas else 'chip-danger' }}" style="font-size:13px">{{ b.akhir }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4"><div class="empty my-4"><strong>Belum ada siswa</strong>Masukkan siswa ke rombel kelas {{ class_target }} pada tahun ajaran aktif.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% if rekap.baris %}
+  <p class="text-xs dim">{{ rekap.baris|selectattr('tuntas')|list|length }} dari {{ rekap.baris|length }} siswa tuntas (≥ {{ kkm }}).</p>
+  {% endif %}
+</div>
 {% endblock %}

@@ -33,3 +33,9 @@ _to_delete/
 
 # Catatan kerja lokal (tidak ikut ke GitHub)
 CLAUDE.md
+
+# Cadangan database & rekap nilai (berisi data siswa, jangan ke GitHub)
+backups/
+
+# Log server dari ONLINE.bat
+logs/

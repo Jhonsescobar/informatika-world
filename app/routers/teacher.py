@@ -2,8 +2,10 @@
 # Router khusus untuk mengelola halaman Guru (CRUD Materi, dll)
 import logging
 import random
+import secrets
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+import re
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -14,7 +16,9 @@ from app.utils.deps import require_teacher
 
 from app.models.grade import ScoreComponent, Score
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
-from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor, simpan_nilai_tertinggi
+from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor
+from app.services.rekap import rekap_kelas, urutkan, persen_terbaik, tahun_aktif, KKM, BATAS_REMEDIAL
+from app.services.excel import buku_rekap, buku_ujian
 from app.services.esai import nilai_esai
 from datetime import datetime, timezone
 from sqlalchemy import func
@@ -27,7 +31,8 @@ from app.models.student import Student
 # Mengimpor model Grade dan ExamSession
 # Mengimpor satpam khusus guru
 from app.models.student import Student
-from app.utils.security import hash_password
+from app.utils.security import hash_password, verify_password, create_access_token, sidik
+from app.utils import ratelimit
 
 from app.models.user import User
 from app.models.achievement import StudentAchievement
@@ -163,35 +168,66 @@ async def list_exams(request: Request, db: Session = Depends(get_db), user=Depen
     template = templates_env.get_template("teacher/exams.html")
     remedial_pending = dict(db.query(RemedialRequest.exam_id, func.count(RemedialRequest.id))
                             .filter(RemedialRequest.status == "pending").group_by(RemedialRequest.exam_id).all())
-    html_content = template.render(request=request, exams=exams, banks=banks,
-                                   remedial_pending=remedial_pending, user=user)
+    komponen = db.query(ScoreComponent).order_by(ScoreComponent.class_target, ScoreComponent.id).all()
+    html_content = template.render(request=request, exams=exams, banks=banks, komponen=komponen,
+                                   nama_komponen={k.id: k for k in komponen}, remedial_pending=remedial_pending,
+                                   error=request.query_params.get("error"), user=user)
     return HTMLResponse(content=html_content)
 
 @router.post("/exams/create")
 # Membuat ujian baru
 async def create_exam(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
     form = await request.form()
-    
-    # Mengambil nilai checkbox. Jika dicentang, form mengirim "on", jika tidak, None.
-    rand_q = True if form.get("randomize_questions") == "on" else False
-    rand_o = True if form.get("randomize_options") == "on" else False
-    
+    try:
+        bank_id = int(form.get("bank_id"))
+        durasi = int(form.get("duration_minutes"))
+    except (TypeError, ValueError):
+        return RedirectResponse(url="/teacher/exams?error=isian", status_code=303)
+    kelas = form.get("class_target")
+    judul = (form.get("title") or "").strip()[:150]
+    if not judul or kelas not in TINGKAT or not 1 <= durasi <= 300 or not db.query(QuestionBank).filter(QuestionBank.id == bank_id).first():
+        return RedirectResponse(url="/teacher/exams?error=isian", status_code=303)
+    komponen_id = None
+    if (form.get("component_id") or "").isdigit():
+        komp = db.query(ScoreComponent).filter(ScoreComponent.id == int(form.get("component_id"))).first()
+        if not komp or komp.class_target != kelas:      # komponen harus satu tingkat dengan ujian
+            return RedirectResponse(url="/teacher/exams?error=komponen", status_code=303)
+        komponen_id = komp.id
+    jumlah = form.get("question_count") or ""
+    tahun = tahun_aktif(db)
     new_exam = Exam(
-        title=form.get("title"),
-        bank_id=int(form.get("bank_id")),
-        class_target=form.get("class_target"),
-        duration_minutes=int(form.get("duration_minutes")),
-        randomize_questions=rand_q,
-        randomize_options=rand_o,
-        is_published=False, # Saat baru dibuat, statusnya Draf
+        title=judul,
+        bank_id=bank_id,
+        class_target=kelas,
+        duration_minutes=durasi,
+        randomize_questions=form.get("randomize_questions") == "on",
+        randomize_options=form.get("randomize_options") == "on",
+        is_published=False,          # Saat baru dibuat, statusnya Draf
         teacher_id=int(user.get("sub")),
-        # Jumlah soal per siswa (acak dari bank). Kosong / 0 = semua soal
-        question_count=int(form.get("question_count")) if (form.get("question_count") or "").isdigit() and int(form.get("question_count")) > 0 else None
+        question_count=int(jumlah) if jumlah.isdigit() and int(jumlah) > 0 else None,
+        component_id=komponen_id,
+        academic_year_id=tahun.id if tahun else None,
     )
     db.add(new_exam)
     db.commit()
-    
+    return RedirectResponse(url="/teacher/exams", status_code=303)
+
+@router.post("/exams/{exam_id}/component")
+# Memindahkan ujian ke komponen nilai lain (atau melepasnya); nilai siswa ikut pindah otomatis
+async def set_exam_component(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        return RedirectResponse(url="/teacher/exams", status_code=303)
+    pilihan = form.get("component_id") or ""
+    if pilihan == "":
+        exam.component_id = None
+    elif pilihan.isdigit():
+        komp = db.query(ScoreComponent).filter(ScoreComponent.id == int(pilihan)).first()
+        if not komp or komp.class_target != exam.class_target:
+            return RedirectResponse(url="/teacher/exams?error=komponen", status_code=303)
+        exam.component_id = komp.id
+    db.commit()
     return RedirectResponse(url="/teacher/exams", status_code=303)
 
 @router.post("/exams/{exam_id}/toggle-publish")
@@ -211,6 +247,7 @@ async def toggle_publish(exam_id: int, request: Request, db: Session = Depends(g
     return RedirectResponse(url="/teacher/exams", status_code=303)
 # --- TAMBAHAN FASE 10: GRADE ENGINE ---
 
+@router.get("/exams/{exam_id}/results/export")
 @router.get("/exams/{exam_id}/results", response_class=HTMLResponse)
 # Melihat hasil pengerjaan ujian oleh siswa
 async def exam_results(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
@@ -223,94 +260,132 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
     pelanggaran = dict(db.query(ExamViolation.session_id, func.count(ExamViolation.id))
                        .join(ExamSession, ExamSession.id == ExamViolation.session_id)
                        .filter(ExamSession.exam_id == exam_id).group_by(ExamViolation.session_id).all())
+    tahun = tahun_aktif(db)
+    q_rombel = db.query(Enrollment.student_id, Rombel.rombel_name).join(Rombel, Rombel.id == Enrollment.rombel_id)
+    rombel_siswa = dict((q_rombel.filter(Enrollment.academic_year_id == tahun.id) if tahun else q_rombel).all())
+    remedial_aktif = {r.student_id: r.status for r in db.query(RemedialRequest).filter(
+        RemedialRequest.exam_id == exam_id, RemedialRequest.status.in_(["pending", "approved"]))}
     rows, percobaan = [], {}
     for sesi, siswa in sessions:
         percobaan[siswa.id] = percobaan.get(siswa.id, 0) + 1
         maks = total_poin_sesi(db, sesi, exam)      # soal tiap siswa bisa berbeda
         persen = round(sesi.score * 100 / maks) if (sesi.score is not None and maks) else None
         rows.append({"sesi": sesi, "siswa": siswa, "ke": percobaan[siswa.id], "persen": persen, "maks": maks,
-                     "pelanggaran": pelanggaran.get(sesi.id, 0)})
+                     "pelanggaran": pelanggaran.get(sesi.id, 0), "rombel": rombel_siswa.get(siswa.id, "")})
+    # sesi terakhir tiap siswa: tempat tombol "Beri remedial"
+    terakhir = {}
+    for r in rows:
+        terakhir[r["siswa"].id] = r
+    for r in rows:
+        r["terakhir"] = terakhir[r["siswa"].id] is r
+        r["remedial"] = remedial_aktif.get(r["siswa"].id)
+    # urutan: nilai tertinggi siswa dulu (default), atau nama A-Z / Z-A
+    terbaik = {}
+    for r in rows:
+        terbaik[r["siswa"].id] = max(terbaik.get(r["siswa"].id, -1), r["persen"] if r["persen"] is not None else -1)
+    urut = request.query_params.get("urut", "nilai")
+    urut = urut if urut in URUTAN else "nilai"
+    nama = lambda r: r["siswa"].name.lower()
+    if urut == "az":
+        rows.sort(key=lambda r: (nama(r), r["ke"]))
+    elif urut == "za":
+        rows.sort(key=lambda r: (nama(r), -r["ke"]), reverse=True)
+    elif urut == "rendah":
+        rows.sort(key=lambda r: (terbaik[r["siswa"].id], nama(r), r["ke"]))
+    else:
+        rows.sort(key=lambda r: (-terbaik[r["siswa"].id], nama(r), r["ke"]))
+    if request.url.path.endswith("/export"):
+        return unduh_xlsx(buku_ujian(exam, rows), f"hasil_{exam.title}_{datetime.now():%Y%m%d}")
     permintaan = (db.query(RemedialRequest, Student).join(Student, Student.id == RemedialRequest.student_id)
                   .filter(RemedialRequest.exam_id == exam_id, RemedialRequest.status == "pending")
                   .order_by(RemedialRequest.created_at).all())
     template = templates_env.get_template("teacher/exam_results.html")
-    html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan,
-                                   total_poin=total_poin, user=user)
+    html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan, urut=urut, urutan=URUTAN,
+                                   batas=BATAS_REMEDIAL, total_poin=total_poin, user=user)
     return HTMLResponse(content=html_content)
 
 @router.get("/grades", response_class=HTMLResponse)
-# Halaman manajemen komponen nilai (bobot)
+# Komponen nilai & bobot per tingkat
 async def grade_components(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
-    components = db.query(ScoreComponent).order_by(ScoreComponent.class_target).all()
-    # Mengambil semua komponen nilai
-    
+    components = db.query(ScoreComponent).order_by(ScoreComponent.class_target, ScoreComponent.id).all()
+    jumlah_ujian = dict(db.query(Exam.component_id, func.count(Exam.id)).filter(Exam.component_id != None)
+                        .group_by(Exam.component_id).all())
     template = templates_env.get_template("teacher/grades.html")
-    html_content = template.render(request=request, components=components, user=user)
+    html_content = template.render(request=request, components=components, jumlah_ujian=jumlah_ujian,
+                                   error=request.query_params.get("error"), user=user)
     return HTMLResponse(content=html_content)
 
+TINGKAT = ("VII", "VIII", "IX")
+
 @router.post("/grades/components/create")
-# Menambah komponen nilai baru
+# Menambah komponen nilai: total bobot per tingkat tidak boleh lebih dari 100%
 async def create_component(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
     form = await request.form()
-    new_comp = ScoreComponent(
-        name=form.get("name"),
-        weight=int(form.get("weight")),
-        class_target=form.get("class_target"),
-        teacher_id=int(user.get("sub"))
-    )
-    db.add(new_comp)
+    nama = (form.get("name") or "").strip()[:80]
+    kelas = form.get("class_target")
+    try:
+        bobot = int(form.get("weight"))
+    except (TypeError, ValueError):
+        bobot = 0
+    if not nama or kelas not in TINGKAT or not 1 <= bobot <= 100:
+        return RedirectResponse(url="/teacher/grades?error=isian", status_code=303)
+    terpakai = db.query(func.coalesce(func.sum(ScoreComponent.weight), 0)).filter(ScoreComponent.class_target == kelas).scalar()
+    if terpakai + bobot > 100:
+        return RedirectResponse(url=f"/teacher/grades?error=bobot&sisa={100 - terpakai}&kelas={kelas}", status_code=303)
+    db.add(ScoreComponent(name=nama, weight=bobot, class_target=kelas, teacher_id=int(user.get("sub"))))
     db.commit()
-    
     return RedirectResponse(url="/teacher/grades", status_code=303)
 
+URUTAN = {"nilai": "Nilai tertinggi", "rendah": "Nilai terendah", "az": "Nama A–Z", "za": "Nama Z–A"}
+
 @router.get("/grades/class/{class_target}", response_class=HTMLResponse)
-# Melihat rekap nilai akhir per kelas (Grade Engine)
+# Rekap nilai akhir per tingkat
 async def class_grades(class_target: str, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
+    if class_target not in TINGKAT:
+        return RedirectResponse(url="/teacher/grades", status_code=303)
     try:
-        # 1. Cari ID Kelas (VII, VIII, IX)
-        target_class = db.query(SchoolClass).filter(SchoolClass.class_name == class_target).first()
-        if not target_class:
-            return HTMLResponse(content="Kelas tidak ditemukan", status_code=404)
-            
-        # 2. Cari semua Rombel di kelas ini (misal: VII-A, VII-B)
-        rombels_in_class = db.query(Rombel).filter(Rombel.class_id == target_class.id).all()
-        rombel_ids = [r.id for r in rombels_in_class]
-        # Kumpulkan ID rombelnya saja
-        
-        # 3. Cari semua Enrollment (pendaftaran) siswa di rombel-rombel tersebut
-        enrollments = db.query(Enrollment).filter(Enrollment.rombel_id.in_(rombel_ids)).all()
-        
-        students_data = []
-        for enr in enrollments:
-            student = db.query(Student).filter(Student.id == enr.student_id).first()
-            # 4. Cari komponen nilai untuk kelas ini
-            components = db.query(ScoreComponent).filter(ScoreComponent.class_target == class_target).all()
-            
-            total_weighted_score = 0.0
-            # 5. Hitung Grade Engine
-            for comp in components:
-                score_entry = db.query(Score).filter(Score.student_id == student.id, Score.component_id == comp.id).first()
-                val = score_entry.score_value if score_entry else 0
-                total_weighted_score += (val * comp.weight / 100)
-                
-            students_data.append({
-                "id": student.id,
-                "name": student.name,
-                "final_score": round(total_weighted_score, 2)
-            })
-            
+        urut = request.query_params.get("urut", "nilai")
+        urut = urut if urut in URUTAN else "nilai"
+        rombel = request.query_params.get("rombel", "")
+        rekap = rekap_kelas(db, class_target, int(rombel) if rombel.isdigit() else None)
+        rekap["baris"] = urutkan(rekap["baris"], urut)
+        rombels = (db.query(Rombel).join(SchoolClass, SchoolClass.id == Rombel.class_id)
+                   .filter(SchoolClass.class_name == class_target).order_by(Rombel.rombel_name).all())
         template = templates_env.get_template("teacher/class_grades.html")
-        html_content = template.render(request=request, students_data=students_data, class_target=class_target, user=user)
+        html_content = template.render(request=request, rekap=rekap, class_target=class_target, urut=urut, urutan=URUTAN,
+                                       rombels=rombels, rombel=rombel, kkm=KKM, user=user)
         return HTMLResponse(content=html_content)
-        
-    except Exception as e:
-        # Jika masih ada error, tampilkan di layar
+    except Exception:
         logging.getLogger("informatika").exception("Rekap nilai")
         template = templates_env.get_template("error.html")
         return HTMLResponse(content=template.render(kembali="/teacher/grades"), status_code=500)
+
+
+def unduh_xlsx(isi: bytes, nama: str):
+    # nama file hanya huruf/angka/strip supaya header tidak bisa disisipi
+    aman = re.sub(r"[^A-Za-z0-9_-]+", "_", nama)[:80] or "nilai"
+    return Response(content=isi, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{aman}.xlsx"', "Cache-Control": "no-store"})
+
+
+@router.get("/grades/class/{class_target}/export")
+async def export_class(class_target: str, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    if class_target not in TINGKAT:
+        return RedirectResponse(url="/teacher/grades", status_code=303)
+    urut = request.query_params.get("urut", "nilai")
+    rekap = rekap_kelas(db, class_target)
+    rekap["baris"] = urutkan(rekap["baris"], urut if urut in URUTAN else "nilai")
+    return unduh_xlsx(buku_rekap([rekap]), f"rekap_nilai_kelas_{class_target}_{datetime.now():%Y%m%d}")
+
+
+@router.get("/grades/export")
+async def export_all(db: Session = Depends(get_db), user=Depends(require_teacher)):
+    semua = []
+    for kelas in TINGKAT:
+        rekap = rekap_kelas(db, kelas)
+        rekap["baris"] = urutkan(rekap["baris"], "az")
+        semua.append(rekap)
+    return unduh_xlsx(buku_rekap(semua), f"rekap_nilai_semua_kelas_{datetime.now():%Y%m%d}")
 
 # --- TAMBAHAN FASE 13: TEACHER ANALYTICS ---
 
@@ -440,6 +515,72 @@ def tahun_ajaran_aktif(db: Session):
         raise HTTPException(status_code=400, detail="Belum ada tahun ajaran aktif. Jalankan: python ganti_tahun_ajaran.py")
     return tahun
 
+def pin_baru() -> str:
+    # secrets (bukan random) supaya PIN tidak bisa ditebak dari pola bilangan acak
+    return str(1000 + secrets.randbelow(9000))
+
+
+def halaman_pin(request, daftar, user, judul="siap login", reset=False):
+    template = templates_env.get_template("teacher/student_pins.html")
+    html = template.render(request=request, students=daftar, user=user, judul=judul, reset=reset)
+    # PIN hanya tampil sekali: jangan disimpan cache browser
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
+
+
+def reset_pin_siswa(db, ids):
+    hasil = []
+    for siswa in db.query(Student).filter(Student.id.in_(ids)).order_by(Student.name):
+        pin = pin_baru()
+        siswa.pin_hash = hash_password(pin)   # token lama siswa ikut gugur (sidik berubah)
+        ratelimit.reset(f"siswa:{siswa.id}")  # kunci 5x salah dibuka
+        hasil.append({"name": siswa.name, "pin": pin})
+    db.commit()
+    return hasil
+
+
+@router.post("/students/{student_id}/reset-pin")
+async def reset_pin(student_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    daftar = reset_pin_siswa(db, [student_id])
+    if not daftar:
+        return RedirectResponse(url="/teacher/students", status_code=303)
+    return halaman_pin(request, daftar, user, judul="PIN baru", reset=True)
+
+
+# --- AKUN GURU: ganti password lewat web ---
+@router.get("/account", response_class=HTMLResponse)
+async def account_page(request: Request, user=Depends(require_teacher)):
+    template = templates_env.get_template("teacher/account.html")
+    return HTMLResponse(content=template.render(request=request, user=user, pesan=request.query_params.get("pesan")))
+
+
+PASSWORD_UMUM = {"password", "12345678", "123456789", "guru1234", "informatika", "qwertyui", "admin123", "password1"}
+
+@router.post("/account/password")
+async def change_password(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    lama, baru, ulang = form.get("lama") or "", form.get("baru") or "", form.get("ulang") or ""
+    kunci = f"ganti-pw:{user.get('sub')}"
+    if ratelimit.sisa_kunci_detik(kunci):
+        return RedirectResponse(url="/teacher/account?pesan=terkunci", status_code=303)
+    akun = db.query(User).filter(User.id == int(user.get("sub"))).first()
+    if not akun or not verify_password(lama, akun.hashed_password):
+        ratelimit.catat_gagal(kunci)          # cegah menebak password lama dari komputer yang ditinggal login
+        return RedirectResponse(url="/teacher/account?pesan=lama", status_code=303)
+    if baru != ulang:
+        return RedirectResponse(url="/teacher/account?pesan=beda", status_code=303)
+    if len(baru) < 8 or len(baru) > 128 or baru.lower() in PASSWORD_UMUM or baru == lama:
+        return RedirectResponse(url="/teacher/account?pesan=lemah", status_code=303)
+    ratelimit.reset(kunci)
+    akun.hashed_password = hash_password(baru)
+    db.commit()
+    # perangkat lain yang masih login otomatis keluar; perangkat ini diberi karcis baru
+    from app.routers.auth import pasang_cookie_login
+    respon = RedirectResponse(url="/teacher/account?pesan=ok", status_code=303)
+    pasang_cookie_login(request, respon, create_access_token(
+        {"sub": str(akun.id), "role": akun.role, "v": sidik(akun.hashed_password)}))
+    return respon
+
+
 # --- BULK IMPORT SISWA + AUTO PIN ---
 @router.post("/students/bulk-create")
 async def bulk_create_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
@@ -455,12 +596,12 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
         tahun = tahun_ajaran_aktif(db)
     
     # Pisahkan teks berdasarkan baris baru (enter)
-    names = [n.strip() for n in names_text.split("\n") if n.strip()]
+    names = [n.strip()[:100] for n in (names_text or "").split("\n") if n.strip()][:300]
     
     created_students = []
     for name in names:
         # Generate PIN 4 digit random (1000-9999)
-        pin = str(random.randint(1000, 9999))
+        pin = pin_baru()
         pin_hash = hash_password(pin)
         
         new_student = Student(
@@ -482,9 +623,7 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
         created_students.append({"name": name, "pin": pin})
     
     # Render halaman khusus untuk menampilkan hasil PIN
-    template = templates_env.get_template("teacher/student_pins.html")
-    html_content = template.render(request=request, students=created_students, user=user)
-    return HTMLResponse(content=html_content)
+    return halaman_pin(request, created_students, user)
 
 # --- KELOLA SISWA ---
 @router.get("/students", response_class=HTMLResponse)
@@ -520,6 +659,8 @@ async def list_students(request: Request, db: Session = Depends(get_db), user=De
         pesan = f"{n} siswa di{'non' if p.get('pesan') == 'nonaktif' else ''}aktifkan."
     elif p.get("pesan") == "keluar":
         pesan = f"{n} siswa dikeluarkan dari rombelnya."
+    elif p.get("pesan") == "pin_salah":
+        pesan = "Siswa tidak disimpan: nama wajib diisi dan PIN harus 4–6 angka."
 
     template = templates_env.get_template("teacher/students.html")
     html_content = template.render(request=request, students=students, semua=semua, rombels=rombels,
@@ -600,10 +741,25 @@ async def override_essay_score(answer_id: int, request: Request, db: Session = D
     except ValueError:
         pass
     hitung_ulang_skor(db, sesi)
-    exam = db.query(Exam).filter(Exam.id == sesi.exam_id).first()
-    simpan_nilai_tertinggi(db, exam, sesi.student_id)
     db.commit()
     return RedirectResponse(url=f"/teacher/exams/{sesi.exam_id}/sessions/{sesi.id}?tersimpan=1#soal-{soal.id}", status_code=303)
+
+
+# --- REMEDIAL DARI GURU: memberi izin mengulang tanpa menunggu siswa mengajukan ---
+@router.post("/exams/{exam_id}/sessions/{session_id}/remedial")
+async def grant_remedial(exam_id: int, session_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    sesi = db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.exam_id == exam_id).first()
+    if sesi and sesi.status != "active":
+        ada = db.query(RemedialRequest).filter(RemedialRequest.student_id == sesi.student_id, RemedialRequest.exam_id == exam_id,
+                                               RemedialRequest.status.in_(["pending", "approved"])).first()
+        if ada:
+            ada.status = "approved"          # permintaan siswa yang menunggu langsung disetujui
+            ada.decided_at = datetime.now(timezone.utc)
+        else:
+            db.add(RemedialRequest(student_id=sesi.student_id, exam_id=exam_id, session_id=sesi.id, status="approved",
+                                   decided_at=datetime.now(timezone.utc)))
+        db.commit()
+    return RedirectResponse(url=f"/teacher/exams/{exam_id}/results", status_code=303)
 
 
 # --- REMEDIAL: guru menyetujui / menolak permintaan mengulang ujian ---
@@ -651,10 +807,14 @@ async def remove_from_rombel(enrollment_id: int, db: Session = Depends(get_db), 
 @router.post("/students/create")
 async def create_student(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     form = await request.form()
-    pin_hash = hash_password(form.get("pin"))
+    pin = (form.get("pin") or "").strip()
+    nama = (form.get("name") or "").strip()[:100]
+    if not nama or not pin.isdigit() or not 4 <= len(pin) <= 6:
+        return RedirectResponse(url="/teacher/students?pesan=pin_salah", status_code=303)
+    pin_hash = hash_password(pin)
     new_student = Student(
-        name=form.get("name"),
-        nipd=form.get("nipd"),
+        name=nama,
+        nipd=(form.get("nipd") or "").strip()[:30] or None,
         pin_hash=pin_hash,
         is_active=True
     )
@@ -680,7 +840,8 @@ async def delete_material(material_id: int, db: Session = Depends(get_db), user=
 async def delete_component(comp_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
     comp = db.query(ScoreComponent).filter(ScoreComponent.id == comp_id).first()
     if comp:
-        # Hapus semua nilai di komponen ini dulu (Foreign Key Constraint)
+        # Ujian yang memakai komponen ini dilepas (tidak ikut terhapus), nilai lama versi sebelumnya dibersihkan
+        db.query(Exam).filter(Exam.component_id == comp_id).update({Exam.component_id: None}, synchronize_session=False)
         db.query(Score).filter(Score.component_id == comp_id).delete(synchronize_session=False)
         db.delete(comp)
         db.commit()
@@ -757,8 +918,11 @@ async def bulk_students(request: Request, db: Session = Depends(get_db), user=De
     if not kembali.startswith("/teacher/students"):          # hanya boleh kembali ke halaman ini
         kembali = "/teacher/students"
     sambung = "&" if "?" in kembali else "?"
-    if not ids or aksi not in ("move", "deactivate", "activate", "unenroll", "delete"):
+    if not ids or aksi not in ("move", "deactivate", "activate", "unenroll", "delete", "reset_pin"):
         return RedirectResponse(url=kembali, status_code=303)
+
+    if aksi == "reset_pin":
+        return halaman_pin(request, reset_pin_siswa(db, ids), user, judul="PIN baru", reset=True)
 
     if aksi == "delete":
         return RedirectResponse(url=f"/teacher/students/delete?ids={','.join(map(str, ids))}", status_code=303)

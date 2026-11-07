@@ -9,6 +9,10 @@
 #    (sinonim dipisah "/": "sentuh/raba"). Jika tidak, dari kata penting di kunci jawaban.
 # 5. Kunci jawaban boleh lebih dari satu (satu per baris): diambil yang paling mirip.
 #
+# 6. Celah "tulis daftar kata kunci saja" ditutup: jawaban 3+ kata tanpa satu pun kata sambung
+#    (bukan kalimat) ditandai "perlu dicek"; bila jelas hanya deretan kata kunci, nilainya dibatasi BATAS_DAFTAR. Jawaban yang jauh
+#    lebih panjang dari kunci (menebar banyak kata) juga ditandai, tanpa mengurangi nilai.
+#
 # Hasilnya selalu bisa dikoreksi guru di halaman detail sesi.
 
 import re
@@ -18,6 +22,8 @@ from difflib import SequenceMatcher
 BATAS_PENUH = 0.8
 # Kemiripan < BATAS_NOL dianggap tidak menjawab (nilai 0)
 BATAS_NOL = 0.25
+# Nilai maksimal untuk jawaban berupa daftar kata (bukan kalimat)
+BATAS_DAFTAR = 0.5
 
 KATA_SAMBUNG = set("""
 yang dan atau di ke dari pada untuk dengan dalam oleh adalah ialah merupakan yaitu yakni
@@ -99,7 +105,10 @@ def nilai_esai(jawaban: str, kunci: str, kata_kunci: str = "") -> dict:
     """
     siswa = kata_penting(jawaban)
     if not siswa:
-        return {"kemiripan": 0.0, "persen": 0.0, "cocok": [], "kurang": []}
+        return {"kemiripan": 0.0, "persen": 0.0, "cocok": [], "kurang": [], "perlu_cek": "", "dibatasi": False}
+    semua_kata = re.findall(r"[a-z0-9]+", (jawaban or "").lower())
+    # kalimat wajar hampir selalu memuat kata sambung (yang, untuk, dengan, adalah, ...)
+    daftar_kata = len(semua_kata) >= 3 and not any(k in KATA_SAMBUNG for k in semua_kata)
 
     grup = baca_kata_kunci(kata_kunci)
     terbaik = None
@@ -130,5 +139,16 @@ def nilai_esai(jawaban: str, kunci: str, kata_kunci: str = "") -> dict:
         persen = 0.0
     else:
         persen = round(k / BATAS_PENUH, 2)
+    terbaik["perlu_cek"], terbaik["dibatasi"] = "", False
+    panjang_kunci = max((len(kata_penting(b)) for b in (kunci or "").splitlines()), default=0)
+    if daftar_kata:
+        terbaik["perlu_cek"] = "Jawaban berupa daftar kata, bukan kalimat"
+        # dibatasi hanya jika jelas daftar: dipisah koma, atau hampir semua katanya kata kunci/kunci
+        acuan = [k for g in grup for k in g] or [k for b in (kunci or "").splitlines() for k in kata_penting(b)]
+        isi_kunci = sum(1 for k in siswa if ada_di(k, acuan)) / len(siswa)
+        if ("," in (jawaban or "") or isi_kunci >= 0.9) and persen > BATAS_DAFTAR:
+            persen, terbaik["dibatasi"] = BATAS_DAFTAR, True
+    elif panjang_kunci and len(siswa) > max(25, 4 * panjang_kunci):
+        terbaik["perlu_cek"] = "Jawaban jauh lebih panjang dari kunci"
     terbaik["persen"] = persen
     return terbaik

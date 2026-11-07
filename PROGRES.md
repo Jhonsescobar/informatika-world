@@ -1,6 +1,6 @@
 # Progres Informatika World
 
-Status per 7 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan prioritas.
+Status per 8 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan prioritas.
 
 ## Sudah selesai
 
@@ -14,7 +14,12 @@ Status per 7 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - [x] Materi: tambah, lihat, hapus
 - [x] Bank soal & soal pilihan ganda: tambah, lihat, hapus bank (ikut menghapus soal, ujian, dan jawaban)
 - [x] Ujian: buat, terbitkan / tarik, hasil per siswa, analitik 3 soal tersulit, hapus
-- [x] Komponen nilai & bobot per tingkat, rekap nilai akhir per tingkat
+- [x] Komponen nilai & bobot per tingkat (total ≤ 100% divalidasi); ujian dipilihkan komponen saat dibuat
+- [x] Rekap nilai akhir per tingkat: hanya tahun ajaran aktif, nilai tertinggi tiap ujian, urut nilai / A–Z / Z–A, saring rombel
+- [x] Ekspor Excel: rekap per kelas, semua kelas, dan hasil per ujian
+- [x] Hasil ujian: urut nilai / nama, tombol **Beri remedial** untuk nilai < 60%
+- [x] Reset PIN satu siswa atau massal (PIN lama & sesi login lama langsung tidak berlaku)
+- [x] Halaman **Akun**: ganti password lewat web (perangkat lain otomatis keluar)
 - [x] Siswa: tambah massal + PIN otomatis langsung ke rombel, cetak PIN
 - [x] Saring per rombel, cari nama, centang / pilih semua
 - [x] Aksi massal: pindah rombel, nonaktifkan, aktifkan, keluarkan dari rombel, hapus permanen
@@ -58,34 +63,46 @@ Status per 7 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - [x] Jawaban tidak bisa dikirim ulang; batas waktu ditegakkan server (toleransi 2 menit)
 - [x] Halaman error umum; detail teknis hanya di log server (sebelumnya traceback tampil ke siswa)
 - [x] `/docs`, `/redoc`, `/openapi.json` dimatikan
+- [x] Ganti password / reset PIN membatalkan semua token lama; masa login 4 jam (ujian panjang tidak terputus)
+- [x] PIN dibuat dengan `secrets` (bukan `random`); PIN manual wajib 4–6 angka
+- [x] Header keamanan (nosniff, anti-frame, no-store di halaman guru/siswa); app menolak jalan bila `SECRET_KEY` pendek
+- [x] Ekspor Excel aman dari rumus jahat (nama diawali `=`, `+`, `-`, `@`)
 - [x] Login PIN tidak lagi bergantung pada driver database (konversi `student_id` ke angka)
 
 ## Roadmap: perlu, belum dikerjakan
 
 ### Prioritas tinggi (keamanan & data)
-- [ ] **Ganti password guru default** `guru123` dan buat halaman ganti password
-- [ ] **Pastikan `SECRET_KEY` di `.env` panjang dan acak** (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)
-- [ ] **Backup database terjadwal** (`pg_dump` harian ke folder lain / cloud). Saat ini belum ada backup sama sekali
-- [ ] **Ekspor nilai ke Excel/CSV** per kelas, sebelum menghapus siswa atau akhir semester
+- [x] Script `ganti_password_guru.py` (password diketik saat berjalan, tidak disimpan di file)
+- [ ] Jalankan `python ganti_password_guru.py` di laptop sebelum web dionlinekan
+- [x] Halaman ganti password di web
+- [x] `SECRET_KEY` di laptop sudah 42 karakter; app kini menolak kunci pendek
+- [x] Cadangan otomatis sebelum & sesudah sesi (`backup_db.py`, 30 terakhir, opsional salin ke Google Drive) + `pulihkan_db.py`
+- [x] Ekspor nilai ke Excel
 - [ ] **Jinja autoescape** belum aktif di 3 router: teks yang diketik guru (judul, nama siswa) dirender sebagai HTML
-- [ ] **Header keamanan** (CSP, X-Content-Type-Options, frame-ancestors) lewat middleware
-- [ ] **Reset PIN siswa** satu per satu (sekarang hanya saat akun dibuat)
+- [x] Header keamanan dasar (CSP belum: banyak script inline)
+- [x] Reset PIN siswa
 
 ### Prioritas sedang (logika yang perlu diputuskan)
 - [ ] **Isi bank soal minimal 2x jumlah soal per siswa** supaya kombinasi soal benar-benar beragam
-- [ ] **Esai: daftar kata kunci tanpa kalimat bisa dapat nilai penuh** — guru tetap cek jawaban di halaman detail
+- [x] Esai: deretan kata kunci dibatasi 50% dan ditandai "Perlu dicek"
 - [ ] **Mode ujian pengawas**: guru melihat siapa sedang mengerjakan dan pelanggarannya secara langsung
-- [ ] **Komponen nilai otomatis**: setiap ujian membuat komponen bernama judul ujian dengan bobot 100%, sehingga total bobot per tingkat lewat dari 100%. Saran: guru memilih komponen tujuan saat membuat ujian
-- [ ] **Leaderboard & rekap belum menyaring tahun ajaran aktif** (wajib sebelum fitur naik kelas)
+- [x] Logika nilai dirombak: guru memilih komponen tujuan saat membuat ujian
+- [x] Peringkat & rekap hanya tahun ajaran aktif
 - [ ] **Edit** materi, soal, ujian, dan data siswa (nama/NIPD)
+
+- [x] Komponen ujian bisa diganti langsung dari daftar Ujian (untuk ujian lama yang "tanpa komponen")
+- [ ] Siswa nonaktif masih tampil di rekap & peringkat (sengaja: nilainya tetap tercatat)
 
 ### Fitur berikutnya
 - [ ] Naik kelas otomatis di akhir tahun ajaran (dengan pratinjau)
 - [ ] Hapus rombel kosong (misalnya VII-A dari data awal)
 
 ### Kerapian & operasional
+- [x] `ONLINE.bat`: mode internet (Cloudflare) atau jaringan lokal, cadangan otomatis, cegah laptop tidur, nyalakan ulang otomatis
+- [x] `PANDUAN_ONLINE.md`
+- [ ] Uji `ONLINE.bat` pertama kali di laptop (belum bisa diuji di luar Windows)
 - [ ] Pindahkan script lepas (`seed_rombel.py`, `ganti_tahun_ajaran.py`, `app/add_*.py`) ke folder `scripts/`
 - [ ] Pecah `teacher.py` (±600 baris) per fitur
-- [ ] Simpan three.js dan CSS Tailwind di `app/static` agar web tetap jalan tanpa internet (Tailwind CDN tidak disarankan untuk produksi)
-- [ ] Tes otomatis untuk alur ujian & keamanan (sekarang 4 tes dasar)
+- [x] three.js, Tailwind (build), dan font disimpan di `app/static`: web jalan tanpa internet
+- [x] 72 uji otomatis (`python -m pytest -q`): nilai, keamanan, akun, ekspor, esai, fitur kelas
 - [ ] Hapus isi `_to_delete/` dan folder kosong `app/templates/components/`

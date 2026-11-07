@@ -49,6 +49,7 @@
           <span class="chip {{ 'chip-teal' if (b.a.similarity or 0) >= 0.8 else ('chip-amber' if (b.a.similarity or 0) >= 0.25 else 'chip-danger') }}">kemiripan {{ ((b.a.similarity or 0) * 100)|round|int }}%</span>
           {% for k in b.analisis.cocok %}<span class="chip chip-teal">{{ k|e }}</span>{% endfor %}
           {% for k in b.analisis.kurang %}<span class="chip" style="text-decoration:line-through">{{ k|e }}</span>{% endfor %}
+          {% if b.analisis.perlu_cek %}<span class="chip chip-amber chip-dot" title="{{ 'Nilai otomatis dibatasi 50%' if b.analisis.dibatasi else 'Nilai otomatis tidak diubah' }}">Perlu dicek: {{ b.analisis.perlu_cek }}{{ ' · dibatasi 50%' if b.analisis.dibatasi }}</span>{% endif %}
         </div>
         <form action="/teacher/answers/{{ b.a.id }}/score" method="POST" class="mt-5 flex flex-wrap items-end gap-3">
           <label class="field" style="width:200px">

@@ -4,7 +4,6 @@
 from sqlalchemy.orm import Session
 from app.models.exam import Exam, ExamSession, ExamAnswer
 from app.models.question import Question
-from app.models.grade import ScoreComponent, Score
 
 
 def id_soal_sesi(db: Session, sesi: ExamSession, exam: Exam) -> list[int]:
@@ -35,17 +34,3 @@ def hitung_ulang_skor(db: Session, sesi: ExamSession) -> int:
         total += poin_jawaban(jawaban, soal)
     sesi.score = int(round(total))
     return sesi.score
-
-
-def simpan_nilai_tertinggi(db: Session, exam: Exam, student_id: int) -> None:
-    """Komponen nilai ujian = skor tertinggi siswa dari semua sesinya (termasuk remedial)."""
-    terbaik = max((s.score or 0 for s in db.query(ExamSession).filter(
-        ExamSession.exam_id == exam.id, ExamSession.student_id == student_id, ExamSession.score != None)), default=0)
-    komponen = db.query(ScoreComponent).filter(ScoreComponent.name == exam.title).first()
-    if not komponen:
-        return
-    nilai = db.query(Score).filter(Score.student_id == student_id, Score.component_id == komponen.id).first()
-    if nilai:
-        nilai.score_value = terbaik
-    else:
-        db.add(Score(student_id=student_id, component_id=komponen.id, score_value=terbaik))

@@ -29,6 +29,11 @@ class Exam(Base):
 
     # Jumlah soal per siswa, diambil acak dari bank (kosong = semua soal di bank)
     question_count = Column(Integer, nullable=True)
+
+    # Komponen nilai tujuan (Formatif, Sumatif, ...). Kosong = tidak masuk nilai akhir
+    component_id = Column(Integer, ForeignKey("score_components.id"), nullable=True)
+    # Tahun ajaran saat ujian dibuat: rekap & peringkat hanya menghitung tahun ajaran aktif
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=True)
     # Fitur anti-cheat: Acak urutan opsi A/B/C/D untuk setiap siswa?
     
     is_published = Column(Boolean, default=False)

@@ -16,10 +16,11 @@
       {% for exam in exams %}
       <article class="row flex-wrap">
         <div class="row-main">
-          <p class="row-title">{{ exam.title }}</p>
+          <p class="row-title">{{ exam.title|e }}</p>
           <p class="row-meta">
             {% if exam.is_published %}<span class="chip chip-teal chip-dot">Terbit</span>{% else %}<span class="chip chip-amber chip-dot">Draf</span>{% endif %}
             <span>Kelas {{ exam.class_target }}</span>
+            {% if exam.component_id and nama_komponen.get(exam.component_id) %}<span class="chip chip-teal">{{ nama_komponen[exam.component_id].name|e }} · {{ nama_komponen[exam.component_id].weight }}%</span>{% else %}<span class="chip chip-amber" title="Ujian ini tidak masuk nilai akhir berbobot">tanpa komponen</span>{% endif %}
             <span>{{ exam.duration_minutes }} menit</span>
             {% if exam.question_count %}<span class="chip chip-teal">{{ exam.question_count }} soal acak / siswa</span>{% endif %}
             <span>Soal {{ 'diacak' if exam.randomize_questions else 'berurutan' }}</span>
@@ -28,6 +29,13 @@
         </div>
         <div class="row-actions">
           {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber chip-dot" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
+          <form action="/teacher/exams/{{ exam.id }}/component" method="POST" class="flex items-center gap-2">
+            <select name="component_id" class="select" style="min-height:34px;padding:4px 30px 4px 10px;font-size:13px;width:auto" aria-label="Komponen nilai {{ exam.title|e }}" onchange="this.form.submit()">
+              <option value="">Tanpa komponen</option>
+              {% for k in komponen if k.class_target == exam.class_target %}<option value="{{ k.id }}" {{ 'selected' if exam.component_id == k.id }}>{{ k.name|e }} ({{ k.weight }}%)</option>{% endfor %}
+            </select>
+            <noscript><button type="submit" class="link-action">Simpan</button></noscript>
+          </form>
           <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil</a>
           <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
             <button type="submit" class="btn btn-sm {{ 'btn-ghost' if exam.is_published else 'btn-primary' }}">{{ 'Tarik dari siswa' if exam.is_published else 'Terbitkan' }}</button>
@@ -48,6 +56,8 @@
     {% if not banks %}
     <div class="notice notice-amber mt-5">{{ icon('info') }}<span>Belum ada bank soal. <a href="/teacher/question-banks" class="underline">Buat bank soal</a> dulu.</span></div>
     {% endif %}
+    {% if error == 'komponen' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Komponen nilai harus untuk kelas yang sama dengan ujian.</span></div>
+    {% elif error == 'isian' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Isian belum benar: judul wajib, durasi 1–300 menit, bank soal harus ada.</span></div>{% endif %}
     <form action="/teacher/exams/create" method="POST" class="mt-5 flex flex-col gap-5">
       <div class="grid gap-4 md:grid-cols-2">
         <label class="field"><span class="label">Judul ujian</span>
@@ -59,11 +69,17 @@
             {% endfor %}
           </select></label>
         <label class="field"><span class="label">Kelas</span>
-          <select name="class_target" required class="select">
+          <select name="class_target" required class="select" id="pilih-kelas">
             <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
           </select></label>
+        <label class="field"><span class="label">Masuk komponen nilai</span>
+          <select name="component_id" class="select" id="pilih-komponen">
+            <option value="">— Tidak masuk nilai akhir berbobot —</option>
+            {% for k in komponen %}<option value="{{ k.id }}" data-kelas="{{ k.class_target }}">{{ k.name|e }} ({{ k.weight }}%) · Kelas {{ k.class_target }}</option>{% endfor %}
+          </select>
+          <span class="text-xs dim">Belum ada? Buat dulu di <a href="/teacher/grades" class="underline">Nilai</a>.</span></label>
         <label class="field"><span class="label">Durasi (menit)</span>
-          <input type="number" name="duration_minutes" value="15" min="1" required class="input"></label>
+          <input type="number" name="duration_minutes" value="15" min="1" max="300" required class="input"></label>
         <label class="field md:col-span-2"><span class="label">Soal per siswa (opsional)</span>
           <input type="number" name="question_count" min="1" class="input" placeholder="Kosongkan = semua soal di bank">
           <span class="text-xs dim">Contoh: bank berisi 40 soal, isi 20. Tiap siswa mendapat 20 soal acak yang berbeda dari temannya.</span></label>
@@ -76,4 +92,19 @@
     </form>
   </section>
 </div>
+<script>
+// komponen yang tampil hanya milik kelas yang dipilih (server tetap memeriksa)
+(function () {
+  var kelas = document.getElementById('pilih-kelas'), komp = document.getElementById('pilih-komponen');
+  if (!kelas || !komp) return;
+  function saring() {
+    Array.prototype.forEach.call(komp.options, function (o) {
+      if (!o.value) return;
+      o.hidden = o.disabled = o.getAttribute('data-kelas') !== kelas.value;
+    });
+    if (komp.selectedOptions[0] && komp.selectedOptions[0].disabled) komp.value = '';
+  }
+  kelas.addEventListener('change', saring); saring();
+})();
+</script>
 {% endblock %}

@@ -15,3 +15,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 # Mengambil nilai dari key SECRET_KEY di file .env untuk keamanan session nanti
+# Kunci rahasia wajib ada dan cukup panjang: token login ditandatangani dengan kunci ini.
+# Kunci pendek/kosong = siapa pun bisa memalsukan login guru.
+if not SECRET_KEY or len(SECRET_KEY) < 16:
+    raise RuntimeError("SECRET_KEY di file .env kosong atau terlalu pendek (minimal 16 karakter). "
+                       "Buat yang baru: python -c \"import secrets; print(secrets.token_urlsafe(32))\"")

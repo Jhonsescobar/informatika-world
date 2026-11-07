@@ -15,7 +15,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.utils.security import verify_password, create_access_token
+from app.utils.security import verify_password, create_access_token, sidik, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.models.user import User
 from app.models.student import Student
 from app.utils.deps import require_teacher, require_student
@@ -26,7 +26,7 @@ def pasang_cookie_login(request: Request, response, token: str):
     # Secure aktif otomatis bila diakses lewat HTTPS (misalnya lewat tunnel Cloudflare)
     https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True,
-                        max_age=3600, samesite="lax", secure=https)
+                        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, samesite="lax", secure=https)
 
 router = APIRouter(tags=["Auth"])
 
@@ -76,7 +76,7 @@ async def login_teacher(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login/guru?error=salah", status_code=303)
     ratelimit.reset(kunci)
 
-    token_data = {"sub": str(user.id), "role": user.role}       # isi token: id user + role
+    token_data = {"sub": str(user.id), "role": user.role, "v": sidik(user.hashed_password)}       # isi token: id user + role
     access_token = create_access_token(data=token_data)         # bikin token JWT
 
     response = RedirectResponse(url="/teacher/dashboard", status_code=303)  # berhasil -> dashboard guru
@@ -140,7 +140,7 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url=kembali + "&error=pin", status_code=303)
     ratelimit.reset(kunci)
 
-    token_data = {"sub": str(student.id), "role": "student"}   # isi token: id siswa + role student
+    token_data = {"sub": str(student.id), "role": "student", "v": sidik(student.pin_hash)}   # isi token: id siswa + role student
     access_token = create_access_token(data=token_data)        # bikin token JWT
 
     response = RedirectResponse(url="/student/dashboard", status_code=303)  # berhasil -> dashboard siswa

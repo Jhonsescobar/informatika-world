@@ -4,9 +4,15 @@
 {% block title %}Nilai · Informatika World{% endblock %}
 {% block eyebrow %}Nilai & bobot{% endblock %}
 {% block heading %}Komponen <em>nilai akhir</em>{% endblock %}
-{% block lead %}<p class="lead">Nilai akhir = jumlah (nilai komponen × bobot). Pastikan total bobot tiap kelas 100%.</p>{% endblock %}
+{% block lead %}<p class="lead">Tiap ujian masuk ke satu komponen. Nilai komponen = rata-rata nilai tertinggi siswa di ujian-ujiannya. Nilai akhir = jumlah (nilai komponen × bobot). Hanya tahun ajaran aktif yang dihitung.</p>
+<div class="head-actions"><a href="/teacher/grades/export" class="btn btn-primary">{{ icon('download') }}Ekspor semua kelas (Excel)</a></div>{% endblock %}
 {% block content %}
 <div class="stack">
+  {% if error == 'bobot' %}
+  <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Total bobot Kelas {{ request.query_params.get('kelas', '')|e }} tidak boleh lebih dari 100%. Sisa bobot yang masih bisa dipakai: {{ request.query_params.get('sisa', '0')|int }}%.</span></div>
+  {% elif error == 'isian' %}
+  <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Isian belum lengkap: nama wajib diisi, bobot 1–100.</span></div>
+  {% endif %}
   <section class="grid gap-4 sm:grid-cols-3" aria-label="Rekap per kelas">
     {% for kelas in ['VII', 'VIII', 'IX'] %}
     {% set total = components|selectattr('class_target', 'equalto', kelas)|sum(attribute='weight') %}
@@ -29,11 +35,12 @@
         {% for comp in components %}
         <div class="row">
           <div class="row-main">
-            <p class="row-title">{{ comp.name }}</p>
-            <p class="row-meta"><span>Kelas {{ comp.class_target }}</span></p>
+            <p class="row-title">{{ comp.name|e }}</p>
+            <p class="row-meta"><span>Kelas {{ comp.class_target }}</span>
+              {% if jumlah_ujian.get(comp.id) %}<span class="chip chip-teal">{{ jumlah_ujian[comp.id] }} ujian</span>{% else %}<span class="chip chip-amber">belum ada ujian</span>{% endif %}</p>
           </div>
           <span class="mono text-lg text-white">{{ comp.weight }}%</span>
-          <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Hapus komponen ini? Semua nilai di komponen ini ikut terhapus.');">
+          <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Hapus komponen ini? Ujian di dalamnya TIDAK terhapus, hanya dilepas dari komponen.');">
             <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
           </form>
         </div>
@@ -57,6 +64,7 @@
             <input type="number" name="weight" min="1" max="100" required class="input"></label>
         </div>
         <button type="submit" class="btn btn-primary mt-1">Tambah</button>
+        <p class="text-xs dim">Setelah komponen dibuat, pilih komponen ini saat membuat ujian. Komponen tanpa ujian tidak ikut dihitung.</p>
       </form>
     </section>
   </div>

@@ -61,6 +61,9 @@
                 <form action="/teacher/students/{{ s.id }}/toggle-active" method="POST">
                   <button type="submit" class="link-action">{{ 'Nonaktifkan' if s.is_active else 'Aktifkan' }}</button>
                 </form>
+                <form action="/teacher/students/{{ s.id }}/reset-pin" method="POST" data-nama="{{ s.name|e }}" onsubmit="return confirm('Buat PIN baru untuk ' + this.dataset.nama + '? PIN lama langsung tidak berlaku.');">
+                  <button type="submit" class="link-action">{{ icon('key') }}Reset PIN</button>
+                </form>
                 <a href="/teacher/students/{{ s.id }}/delete" class="link-action is-danger">{{ icon('trash') }}Hapus</a>
               </div>
             </td>
@@ -110,6 +113,7 @@
     <option value="deactivate">Nonaktifkan</option>
     <option value="activate">Aktifkan</option>
     <option value="unenroll">Keluarkan dari rombel</option>
+    <option value="reset_pin">Reset PIN (buat PIN baru)</option>
     <option value="delete">Hapus permanen</option>
   </select>
   <select name="rombel_id" form="aksi-massal" id="pilih-rombel" class="select" style="min-height:40px;padding-top:6px;padding-bottom:6px" aria-label="Rombel tujuan">
@@ -138,12 +142,15 @@
     semua.checked = n > 0 && n === kotak.length;
     semua.indeterminate = n > 0 && n < kotak.length;
     rombel.hidden = aksi.value !== 'move';
-    tombol.textContent = aksi.value === 'delete' ? 'Lanjut ke konfirmasi' : 'Terapkan';
+    tombol.textContent = aksi.value === 'delete' ? 'Lanjut ke konfirmasi' : (aksi.value === 'reset_pin' ? 'Buat PIN baru' : 'Terapkan');
     tombol.className = 'btn btn-sm ' + (aksi.value === 'delete' ? 'btn-danger' : 'btn-primary');
   }
   kotak.forEach(k => k.addEventListener('change', segarkan));
   semua.addEventListener('change', () => { kotak.forEach(k => { k.checked = semua.checked; }); segarkan(); });
   aksi.addEventListener('change', segarkan);
+  document.getElementById('aksi-massal').addEventListener('submit', e => {
+    if (aksi.value === 'reset_pin' && !confirm('PIN lama siswa terpilih langsung tidak berlaku. Lanjutkan?')) e.preventDefault();
+  });
   document.getElementById('batal-pilih').addEventListener('click', () => { kotak.forEach(k => { k.checked = false; }); segarkan(); });
   segarkan();
 </script>

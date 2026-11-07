@@ -1,0 +1,33 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'account' %}
+{% set teks = {
+  'ok': ('', 'Password berhasil diganti. Perangkat lain yang masih login sudah otomatis keluar.'),
+  'lama': ('notice-amber', 'Password lama salah.'),
+  'beda': ('notice-amber', 'Password baru dan ulangannya tidak sama.'),
+  'lemah': ('notice-amber', 'Password baru minimal 8 karakter, tidak boleh sama dengan yang lama, dan jangan yang mudah ditebak.'),
+  'terkunci': ('notice-amber', 'Terlalu banyak salah. Coba lagi 10 menit lagi.'),
+} %}
+{% block title %}Akun · Informatika World{% endblock %}
+{% block eyebrow %}Akun guru{% endblock %}
+{% block heading %}Ganti <em>password</em>{% endblock %}
+{% block lead %}<p class="lead">Setelah diganti, semua perangkat lain yang masih login dengan password lama otomatis keluar.</p>{% endblock %}
+{% block content %}
+<div class="stack" style="max-width:520px">
+  {% if pesan in teks %}
+  <div class="notice {{ teks[pesan][0] }}" role="status">{{ icon('check' if pesan == 'ok' else 'info') }}<span>{{ teks[pesan][1] }}</span></div>
+  {% endif %}
+  <section class="panel">
+    <form action="/teacher/account/password" method="POST" class="flex flex-col gap-4" autocomplete="off">
+      <label class="field"><span class="label">Password sekarang</span>
+        <input type="password" name="lama" required class="input" autocomplete="current-password"></label>
+      <label class="field"><span class="label">Password baru</span>
+        <input type="password" name="baru" required minlength="8" maxlength="128" class="input" autocomplete="new-password"></label>
+      <label class="field"><span class="label">Ulangi password baru</span>
+        <input type="password" name="ulang" required minlength="8" maxlength="128" class="input" autocomplete="new-password"></label>
+      <button type="submit" class="btn btn-primary mt-1">{{ icon('lock') }}Simpan password baru</button>
+    </form>
+  </section>
+  <p class="text-xs dim">Lupa password? Jalankan <span class="mono">python ganti_password_guru.py</span> di laptop server.</p>
+</div>
+{% endblock %}

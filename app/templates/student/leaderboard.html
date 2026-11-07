@@ -3,7 +3,7 @@
 {% block title %}Peringkat · Informatika World{% endblock %}
 {% block eyebrow %}Peringkat{% endblock %}
 {% block heading %}Rombel <em>{{ rombel_name }}</em>{% endblock %}
-{% block lead %}<p class="lead">Total skor ujian. Peringkat angkatan mencakup semua rombel kelas {{ class_name }}.</p>{% endblock %}
+{% block lead %}<p class="lead">Nilai akhir (0–100) tahun ajaran ini. Peringkat angkatan mencakup semua rombel kelas {{ class_name }}.</p>{% endblock %}
 {% macro papan(judul, data) %}
 <section class="panel panel-tight" aria-label="{{ judul }}">
   <div class="panel-head px-6 pt-6 mb-2"><h2 class="h-section">{{ judul }}</h2><span class="chip">{{ data|length }} siswa</span></div>

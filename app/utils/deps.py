@@ -2,7 +2,7 @@
 # "Satpam" untuk melindungi route: cek cookie login, peran, dan status akun.
 
 from fastapi import Request, HTTPException
-from app.utils.security import decode_access_token
+from app.utils.security import decode_access_token, sidik
 from app.database import SessionLocal
 
 
@@ -20,12 +20,13 @@ def get_current_user(request: Request):
     return payload
 
 
-def _akun_aktif(model, user_id) -> bool:
-    # Akun yang sudah dihapus atau dinonaktifkan langsung keluar, walau tokennya belum kedaluwarsa
+def _akun_aktif(model, payload, kolom_hash: str) -> bool:
+    # Akun yang dihapus/dinonaktifkan, atau yang password/PIN-nya sudah diganti, langsung keluar
+    # walau tokennya belum kedaluwarsa.
     db = SessionLocal()
     try:
-        akun = db.query(model).filter(model.id == int(user_id)).first()
-        return bool(akun and akun.is_active)
+        akun = db.query(model).filter(model.id == int(payload.get("sub"))).first()
+        return bool(akun and akun.is_active and payload.get("v") == sidik(getattr(akun, kolom_hash)))
     except (TypeError, ValueError):
         return False
     finally:
@@ -37,7 +38,7 @@ def require_teacher(request: Request):
     user = get_current_user(request)
     if user.get("role") != "teacher":
         raise HTTPException(status_code=403, detail="Akses ditolak!")
-    if not _akun_aktif(User, user.get("sub")):
+    if not _akun_aktif(User, user, "hashed_password"):
         raise ke_login()
     return user
 
@@ -47,6 +48,6 @@ def require_student(request: Request):
     user = get_current_user(request)
     if user.get("role") != "student":
         raise HTTPException(status_code=403, detail="Akses ditolak!")
-    if not _akun_aktif(Student, user.get("sub")):
+    if not _akun_aktif(Student, user, "pin_hash"):
         raise ke_login()
     return user

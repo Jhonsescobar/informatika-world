@@ -1,7 +1,7 @@
 # app/utils/security.py
 # Utilitas untuk mengamankan password, PIN, dan membuat token JWT
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 # Mengimpor modul waktu untuk menentukan masa berlaku token
 
 from jose import JWTError, jwt
@@ -16,8 +16,9 @@ from app.config import SECRET_KEY
 ALGORITHM = "HS256"
 # Algoritma standar untuk mengenkripsi JWT
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-# Karcis login (token) akan kedaluwarsa dalam 60 menit
+ACCESS_TOKEN_EXPIRE_MINUTES = 240
+# Karcis login berlaku 4 jam: cukup untuk ujian panjang tanpa siswa terlempar keluar di tengah ujian.
+# Tetap aman karena tiap permintaan memeriksa akun aktif + sidik password/PIN (lihat deps.py).
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # Mengatur passlib untuk menggunakan algoritma Argon2.
@@ -32,6 +33,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Mengembalikan True jika cocok, False jika salah
     return pwd_context.verify(plain_password, hashed_password)
 
+def sidik(hash_rahasia: str) -> str:
+    # Cap pendek dari hash password/PIN. Ikut disimpan di token: begitu password/PIN diganti,
+    # cap berubah dan semua token lama otomatis tidak berlaku (perangkat lain ikut keluar).
+    import hashlib
+    return hashlib.sha256((hash_rahasia or "").encode()).hexdigest()[:16]
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     # Fungsi untuk membuat karcis digital (JWT)
     
@@ -39,9 +46,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     # Menyalin data yang akan dimasukkan ke token (biasanya ID dan peran user)
     
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     # Menentukan waktu kadaluarsa token. Jika tidak ditentukan, pakai default 60 menit
     
     to_encode.update({"exp": expire})
