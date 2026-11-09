@@ -140,3 +140,47 @@ def test_kutip_escape_yang_ikut_melengkung():
     kotor = '{“soal”: [{“pertanyaan”: “x”, “kode”: “print(\\“kecil\\”)”, “opsi”: [“a”, “b”], “jawaban”: “A”}]}'
     h = periksa(kotor)
     assert h["galat"] == [] and h["soal"][0]["kode"] == 'print("kecil")'
+
+
+# --- kutip ganda di dalam kode yang tidak di-escape AI (kasus guru, 9 Nov 2026) ---
+from pathlib import Path
+
+DATA = Path(__file__).parent / "data"
+
+
+def test_kutip_ganda_di_dalam_kode_dari_ai():
+    h = periksa((DATA / "soal_ai_kutip_dalam_kode.json").read_text(encoding="utf-8"))
+    assert h["galat"] == [] and len(h["soal"]) == 12
+    assert h["soal"][3]["kode"] == 'umur = 14\nif umur < 15:\n    print("Kategori Anak")\nelse:\n    print("Kategori Remaja")'
+    assert h["soal"][3]["benar"] == 1 and h["soal"][10]["tipe"] == "esai"
+    assert any("tanda kutip" in p for p in h["perbaikan"])
+
+
+def test_kutip_dengan_koma_di_dalam_kode_dan_baris_baru_mentah():
+    teks = ('{"soal": [{"pertanyaan": "Keluaran?", "kode": "print("a", "b")\nprint(len("abc"))", '
+            '"opsi": ["a b", "ab"], "jawaban": "A"}, {"pertanyaan": "Dua", "opsi": ["x", "y"], "jawaban": "B"}]}')
+    h = periksa(teks)
+    assert h["galat"] == [] and len(h["soal"]) == 2
+    assert h["soal"][0]["kode"] == 'print("a", "b")\nprint(len("abc"))'
+
+
+def test_json_yang_sudah_benar_tidak_diubah():
+    benar = json.dumps({"soal": [{"pertanyaan": 'Apa arti "input"?', "kode": 'print("hai")', "opsi": ["a", "b"], "jawaban": "A"}]})
+    h = periksa(benar)
+    assert h["galat"] == [] and h["perbaikan"] == [] and h["soal"][0]["kode"] == 'print("hai")'
+
+
+def test_json_rusak_lain_tetap_dilaporkan_bukan_ditebak():
+    g = periksa('{"soal": [{"pertanyaan": "x" "opsi": ["a", "b"], "jawaban": "A"}]}')["galat"]
+    assert len(g) == 1 and "baris 1" in g[0]
+
+
+def test_impor_dari_ai_dengan_kode_lalu_tampil_aman(guru, db, data, masuk_siswa):
+    teks = (DATA / "soal_ai_kutip_dalam_kode.json").read_text(encoding="utf-8")
+    url = f"/teacher/question-banks/{data['bank']}/import"
+    r = guru.post(url, data={"aksi": "periksa", "teks": teks})
+    assert "Simpan 12 soal" in r.text and "4 tanda kutip" in r.text
+    assert "print(&#34;Kategori Anak&#34;)" in r.text or "print(&quot;Kategori Anak&quot;)" in r.text
+    assert "n=12" in guru.post(url, data={"aksi": "simpan", "teks": teks}).headers["location"]
+    q = db.query(Question).filter(Question.text.like("Perhatikan potongan kode Python%")).one()
+    assert '```python\numur = 14\nif umur < 15:\n    print("Kategori Anak")' in q.text

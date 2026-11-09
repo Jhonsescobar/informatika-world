@@ -58,7 +58,74 @@ def rapikan(teks: str) -> tuple[str, list[str]]:
     if baru != t:
         t = baru
         perbaikan.append("Koma sisa sebelum } atau ] dibuang")
+    # kutip ganda di dalam teks yang tidak di-escape, misalnya kode print("Halo") di isian "kode",
+    # atau baris baru mentah di dalam teks. Hanya dicoba bila JSON memang belum bisa dibaca.
+    try:
+        json.loads(t)
+    except json.JSONDecodeError:
+        baru, n_kutip, n_baris = _rapikan_isi_teks(t)
+        if baru != t:
+            try:
+                json.loads(baru)
+                t = baru
+                if n_kutip:
+                    perbaikan.append(f'{n_kutip} tanda kutip di dalam teks (misalnya print("...")) di-escape')
+                if n_baris:
+                    perbaikan.append("Baris baru di dalam teks diubah menjadi \\n")
+            except json.JSONDecodeError:
+                pass        # tidak berhasil: laporkan galat asli, bukan hasil tebakan
     return t, perbaikan
+
+
+def _lewati_spasi(t: str, i: int) -> int:
+    while i < len(t) and t[i] in " \t\r\n":
+        i += 1
+    return i
+
+
+def _kutip_penutup(t: str, i: int) -> bool:
+    """Apakah tanda " di posisi i menutup teks JSON? Ya bila sesudahnya struktur JSON: : , } ] atau akhir.
+    Untuk koma, dicek lebih jauh: sesudah koma harus ada } ] atau teks JSON berikutnya yang diikuti : , } ]
+    (supaya print("a", "b") di dalam kode tidak dianggap penutup)."""
+    j = _lewati_spasi(t, i + 1)
+    if j >= len(t) or t[j] in ":}]":
+        return True
+    if t[j] != ",":
+        return False
+    k = _lewati_spasi(t, j + 1)
+    if k >= len(t) or t[k] in "}]":
+        return True
+    if t[k] != '"':
+        return k < len(t) and (t[k].isdigit() or t[k] in "-{[tfn")   # angka / objek / true / false / null
+    m = k + 1
+    while m < len(t) and t[m] != '"':
+        m += 2 if t[m] == "\\" else 1
+    n = _lewati_spasi(t, m + 1)
+    return n >= len(t) or t[n] in ":,}]"
+
+
+def _rapikan_isi_teks(t: str) -> tuple[str, int, int]:
+    hasil, dalam, i, n_kutip, n_baris = [], False, 0, 0, 0
+    while i < len(t):
+        c = t[i]
+        if dalam and c == "\\" and i + 1 < len(t):
+            hasil.append(t[i:i + 2]); i += 2; continue
+        if c == '"':
+            if not dalam:
+                dalam = True; hasil.append(c)
+            elif _kutip_penutup(t, i):
+                dalam = False; hasil.append(c)
+            else:
+                hasil.append('\\"'); n_kutip += 1
+        elif dalam and c in "\n\r\t":
+            if c == "\n":
+                hasil.append("\\n"); n_baris += 1
+            elif c == "\t":
+                hasil.append("\\t")
+        else:
+            hasil.append(c)
+        i += 1
+    return "".join(hasil), n_kutip, n_baris
 
 
 def _kutip_lurus(t: str) -> str:
@@ -230,7 +297,8 @@ Aturan:
 - Bahasa Indonesia yang baku, singkat, dan sesuai usia SMP.
 - Pilihan ganda: 4 opsi, tepat satu jawaban benar, opsi pengecoh masuk akal, jangan pakai "semua benar"/"semua salah".
 - Sebar letak jawaban benar (A, B, C, D) secara acak dan seimbang.
-- Bila soal memakai potongan kode Python, taruh kodenya di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi.
+- Bila soal memakai potongan kode Python, taruh kodenya di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi,
+  baris baru ditulis \\n, dan teks di dalam kode memakai kutip tunggal: print('Halo') (bukan print("Halo")).
 - Esai: isi "kunci" dengan jawaban lengkap satu kalimat, dan "kata_kunci" dengan kata atau frasa pendek yang WAJIB ada,
   dipisah koma, sinonim dipisah garis miring (contoh: "cpu/central processing unit, ram, motherboard").
   Jangan menulis kalimat sebagai kata kunci.

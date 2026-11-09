@@ -1,0 +1,141 @@
+{
+"topik": "Informatika Kelas VIII",
+"soal": [
+{
+"tipe": "pg",
+"pertanyaan": "Metode penyelesaian masalah dengan cara memecah masalah besar menjadi bagian-bagian yang lebih kecil dan mudah dikelola disebut ...",
+"opsi": [
+"Dekomposisi",
+"Pengenalan Pola",
+"Abstraksi",
+"Algoritma"
+],
+"jawaban": "A",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Dalam berpikir komputasional, proses mengabaikan informasi yang tidak penting dan fokus pada informasi yang penting saja disebut ...",
+"opsi": [
+"Algoritma",
+"Abstraksi",
+"Dekomposisi",
+"Pengenalan Pola"
+],
+"jawaban": "B",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Apakah keluaran dari potongan kode Python berikut ini?",
+"kode": "x = 10\ny = 3\nhasil = x % y\nprint(hasil)",
+"opsi": [
+"3",
+"3.33",
+"1",
+"0"
+],
+"jawaban": "C",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Perhatikan potongan kode Python berikut. Apa teks yang akan tercetak di layar?",
+"kode": "umur = 14\nif umur < 15:\n    print("Kategori Anak")\nelse:\n    print("Kategori Remaja")",
+"opsi": [
+"Kategori Remaja",
+"Kategori Anak",
+"14",
+"Error"
+],
+"jawaban": "B",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Jenis interaksi antarmuka pengguna yang menggunakan menu grafis, ikon, dan pointer (seperti mouse) disebut dengan istilah ...",
+"opsi": [
+"CLI (Command Line Interface)",
+"Audio User Interface",
+"GUI (Graphical User Interface)",
+"Text User Interface"
+],
+"jawaban": "C",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Manakah di bawah ini yang merupakan fungsi utama dari router dalam sebuah jaringan komputer?",
+"opsi": [
+"Menyimpan data dan file pengguna secara online",
+"Menghubungkan dua atau lebih jaringan yang berbeda dan merutekan paket data",
+"Menampilkan halaman web pada browser",
+"Memindai dokumen fisik menjadi file digital"
+],
+"jawaban": "B",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Kejahatan siber yang dilakukan dengan cara mengirimkan pesan palsu (melalui email atau chat) untuk mencuri data pribadi pengguna disebut ...",
+"opsi": [
+"Phishing",
+"Cyberbullying",
+"Hacking",
+"Data Mining"
+],
+"jawaban": "A",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Manakah ekstensi file berikut ini yang biasanya digunakan untuk format dokumen lembar kerja (spreadsheet)?",
+"opsi": [
+".docx",
+".pptx",
+".xlsx",
+".mp4"
+],
+"jawaban": "C",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Mengapa kita harus membuat kata sandi (password) akun digital yang kuat dengan kombinasi huruf, angka, dan simbol?",
+"opsi": [
+"Agar akun kita tidak mudah diretas oleh orang lain",
+"Agar kecepatan akses internet kita menjadi lebih cepat",
+"Agar kapasitas penyimpanan akun menjadi lebih besar",
+"Agar aplikasi tidak membutuhkan pembaruan sistem"
+],
+"jawaban": "A",
+"poin": 1
+},
+{
+"tipe": "pg",
+"pertanyaan": "Struktur data non-linear yang menyerupai percabangan pohon dan memiliki hubungan hierarki antar elemen dinamakan ...",
+"opsi": [
+"Queue (Antrean)",
+"Stack (Tumpukan)",
+"Array (Larik)",
+"Tree (Pohon)"
+],
+"jawaban": "D",
+"poin": 1
+},
+{
+"tipe": "esai",
+"pertanyaan": "Jelaskan perbedaan cara kerja antara struktur data Stack (Tumpukan) dan Queue (Antrean)!",
+"kunci": "Stack menggunakan prinsip LIFO di mana data terakhir masuk akan keluar pertama, sedangkan Queue menggunakan prinsip FIFO di mana data pertama masuk akan keluar pertama.",
+"kata_kunci": "stack/tumpukan/lifo, queue/antrean/fifo, masuk/keluar",
+"poin": 5
+},
+{
+"tipe": "esai",
+"pertanyaan": "Jelaskan apa yang dimaksud dengan dampak sosial informatika di era digital saat ini!",
+"kunci": "Dampak sosial informatika adalah perubahan perilaku, cara berkomunikasi, dan pola hidup masyarakat yang terjadi akibat perkembangan teknologi informasi.",
+"kata_kunci": "perubahan/dampak/pengaruh, teknologi/informatika/digital, masyarakat/perilaku/sosial",
+"poin": 5
+}
+]
+}
