@@ -83,6 +83,9 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
     tahun = tahun_aktif(db)
     komponen = db.query(ScoreComponent).filter(ScoreComponent.class_target == kelas).order_by(ScoreComponent.id).all()
     ujian = ujian_dihitung(db, kelas, tahun)
+    # sesi yang waktunya habis tapi tidak pernah terkirim: dinilai dari log dulu, supaya ikut terhitung
+    from app.services.penilaian import tutup_sesi_lewat
+    tutup_sesi_lewat(db, [e.id for e in ujian])
     murid = siswa_kelas(db, kelas, tahun, rombel_id)
     terbaik = persen_terbaik(db, [e.id for e in ujian], [s.id for s, _, _ in murid])
 

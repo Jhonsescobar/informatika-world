@@ -231,8 +231,9 @@ Aturan:
 - Pilihan ganda: 4 opsi, tepat satu jawaban benar, opsi pengecoh masuk akal, jangan pakai "semua benar"/"semua salah".
 - Sebar letak jawaban benar (A, B, C, D) secara acak dan seimbang.
 - Bila soal memakai potongan kode Python, taruh kodenya di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi.
-- Esai: isi "kunci" dengan jawaban lengkap satu kalimat, dan "kata_kunci" dengan kata penting dipisah koma,
-  sinonim dipisah garis miring (contoh: "ulang/perulangan, jumlah/banyak").
+- Esai: isi "kunci" dengan jawaban lengkap satu kalimat, dan "kata_kunci" dengan kata atau frasa pendek yang WAJIB ada,
+  dipisah koma, sinonim dipisah garis miring (contoh: "cpu/central processing unit, ram, motherboard").
+  Jangan menulis kalimat sebagai kata kunci.
 - "poin": pilihan ganda 1, esai 5 (boleh diubah sesuai bobot).
 
 Jawab HANYA dengan JSON valid, tanpa penjelasan, persis mengikuti bentuk contoh ini:

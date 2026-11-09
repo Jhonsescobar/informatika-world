@@ -1,0 +1,14 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% from "layouts/materi.html" import isi_materi %}
+{% set active = 'materials' %}
+{% block title %}{{ m.title|e }} · Pratinjau{% endblock %}
+{% block back %}<a href="/teacher/materials" class="back-link">{{ icon('arrow-left') }}Semua materi</a>{% endblock %}
+{% block eyebrow %}Pratinjau · Kelas {{ m.class_target }} · {{ {'terbuka': 'terlihat siswa', 'terjadwal': 'terjadwal', 'lewat': 'sudah ditutup', 'tertutup': 'belum terlihat siswa'}[status] }}{% endblock %}
+{% block heading %}{{ m.title|e }}{% endblock %}
+{% block lead %}{% if m.description %}<p class="lead">{{ m.description|e }}</p>{% endif %}
+<div class="head-actions"><a href="/teacher/materials/{{ m.id }}/edit" class="btn btn-primary">Edit materi</a></div>{% endblock %}
+{% block content %}
+<p class="mb-3 text-xs dim">Tampilan ini sama dengan yang dilihat siswa.</p>
+{{ isi_materi(m) }}
+{% endblock %}

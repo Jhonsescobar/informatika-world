@@ -4,36 +4,51 @@
 {% block title %}Materi · Informatika World{% endblock %}
 {% block eyebrow %}Materi{% endblock %}
 {% block heading %}Bahan ajar <em>per kelas</em>{% endblock %}
-{% block lead %}<p class="lead">{{ materials|length }} materi tersimpan. Buka sebagai kisi-kisi supaya siswa di tingkat itu bisa membacanya sebelum ujian (tidak bisa disalin atau dicetak).</p>{% endblock %}
+{% block lead %}<p class="lead">{{ materials|length }} materi tersimpan. Materi hanya terlihat siswa di tingkatnya setelah Anda tekan <strong>Buka untuk siswa</strong>. Di layar siswa materi tidak bisa disalin atau dicetak.</p>{% endblock %}
 {% block content %}
 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
-  <section class="panel panel-tight" aria-labelledby="judul-daftar">
+  <section class="stack" aria-labelledby="judul-daftar">
+    {% if teks_pesan %}
+    <div class="notice {{ 'notice-amber' if pesan in ('lewat', 'urutan', 'isian') }}" role="status">{{ icon('info' if pesan in ('lewat', 'urutan', 'isian') else 'check') }}<span>{{ teks_pesan }}</span></div>
+    {% endif %}
+    <div class="panel panel-tight">
     <div class="panel-head px-6 pt-6 mb-2">
       <h2 class="h-section" id="judul-daftar">Materi tersedia</h2>
     </div>
     <div class="rows">
       {% for mat in materials %}
-      <article class="row">
+      {% set st = status[mat.id] %}
+      <article class="row" style="align-items:flex-start">
         <div class="row-main">
-          <p class="row-title">{{ mat.title }}</p>
-          {% set terbuka = mat.is_published and (not mat.close_at or mat.close_at.timestamp() > now_ts) %}
+          <p class="row-title">{{ mat.title|e }}</p>
           <p class="row-meta">
             <span class="chip chip-teal">Kelas {{ mat.class_target }}</span>
-            {% if terbuka %}<span class="chip chip-amber chip-dot">Dibuka{{ ' sampai ' ~ mat.close_at.astimezone().strftime('%d/%m %H:%M') if mat.close_at else '' }}</span>
-            {% elif mat.is_published %}<span class="chip">Batas waktu lewat</span>
-            {% else %}<span class="chip">Tertutup untuk siswa</span>{% endif %}
-            <span>{{ mat.created_at.strftime('%d %b %Y') }}</span>
+            {% if st == 'terbuka' %}<span class="chip chip-amber chip-dot">Terlihat siswa{{ ' sampai ' ~ mat.close_at.astimezone().strftime('%d/%m %H:%M') if mat.close_at else '' }}</span>
+            {% elif st == 'terjadwal' %}<span class="chip chip-amber">Tampil mulai {{ mat.open_at.astimezone().strftime('%d/%m %H:%M') }}{{ ' sampai ' ~ mat.close_at.astimezone().strftime('%d/%m %H:%M') if mat.close_at else '' }}</span>
+            {% elif st == 'lewat' %}<span class="chip chip-danger">Sudah ditutup otomatis {{ mat.close_at.astimezone().strftime('%d/%m %H:%M') }}</span>
+            {% else %}<span class="chip">Belum terlihat siswa</span>{% endif %}
+            <span>{{ 'HTML interaktif' if mat.content and mat.content|isi_html else 'Teks' }}</span>
+            <span>{{ mat.created_at.astimezone().strftime('%d %b %Y') }}</span>
           </p>
-          {% if mat.description %}<p class="mt-2 text-sm muted">{{ mat.description }}</p>{% endif %}
-          <form action="/teacher/materials/{{ mat.id }}/visibility" method="POST" class="mt-3 flex flex-wrap items-center gap-2">
-            {% if terbuka %}
+          {% if mat.description %}<p class="mt-2 text-sm muted">{{ mat.description|e }}</p>{% endif %}
+          <div class="mt-3 flex flex-wrap items-center gap-3">
+            <a href="/teacher/materials/{{ mat.id }}" class="link-action is-teal">{{ icon('eye') }}Pratinjau</a>
+            <a href="/teacher/materials/{{ mat.id }}/edit" class="link-action">Edit</a>
+          </div>
+          <form action="/teacher/materials/{{ mat.id }}/visibility" method="POST" class="mt-3">
+            {% if st in ('terbuka', 'terjadwal') %}
             <input type="hidden" name="action" value="close">
-            <button type="submit" class="btn btn-ghost btn-sm">Tutup kisi-kisi</button>
+            <button type="submit" class="btn btn-ghost btn-sm">Tutup untuk siswa</button>
             {% else %}
             <input type="hidden" name="action" value="open">
-            <label class="sr-only" for="batas-{{ mat.id }}">Batas waktu baca</label>
-            <input type="datetime-local" name="close_at" id="batas-{{ mat.id }}" class="input" style="min-height:34px;padding:4px 10px;font-size:13px;width:auto" title="Kosongkan bila terbuka sampai ditutup manual">
-            <button type="submit" class="btn btn-primary btn-sm">Buka untuk siswa</button>
+            <div class="flex flex-wrap items-end gap-3">
+              <label class="field"><span class="label">Mulai tampil (opsional)</span>
+                <input type="datetime-local" name="open_at" class="input" style="min-height:36px;padding:4px 10px;font-size:13px;width:auto"></label>
+              <label class="field"><span class="label">Tutup otomatis (opsional)</span>
+                <input type="datetime-local" name="close_at" class="input" style="min-height:36px;padding:4px 10px;font-size:13px;width:auto"></label>
+              <button type="submit" class="btn btn-primary btn-sm">Buka untuk siswa</button>
+            </div>
+            <p class="mt-1 text-xs dim">Kosongkan keduanya untuk langsung tampil sampai Anda tutup sendiri.</p>
             {% endif %}
           </form>
         </div>
@@ -45,23 +60,13 @@
       <div class="p-6"><div class="empty"><strong>Belum ada materi</strong>Tambahkan materi pertama lewat form di samping.</div></div>
       {% endfor %}
     </div>
+    </div>
   </section>
 
   <section class="panel xl:sticky xl:top-8" aria-labelledby="judul-form">
     <h2 class="h-section" id="judul-form">Tambah materi</h2>
     <form action="/teacher/materials/create" method="POST" class="mt-5 flex flex-col gap-4">
-      <label class="field"><span class="label">Judul</span>
-        <input type="text" name="title" required class="input"></label>
-      <label class="field"><span class="label">Kelas</span>
-        <select name="class_target" required class="select">
-          <option value="VII">Kelas VII</option>
-          <option value="VIII">Kelas VIII</option>
-          <option value="IX">Kelas IX</option>
-        </select></label>
-      <label class="field"><span class="label">Deskripsi singkat</span>
-        <input type="text" name="description" class="input"></label>
-      <label class="field"><span class="label">Isi materi</span>
-        <textarea name="content" rows="6" class="textarea"></textarea></label>
+      {% include "teacher/_isian_materi.html" %}
       <button type="submit" class="btn btn-primary mt-1">Simpan materi</button>
     </form>
   </section>

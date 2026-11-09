@@ -28,6 +28,11 @@ def sisa_kunci_detik(kunci: str) -> int:
         return int(JENDELA_DETIK - (sekarang - daftar[0])) + 1
 
 
+def jumlah_gagal(kunci: str) -> int:
+    with _kunci:
+        return len(_bersihkan(kunci, time.time()))
+
+
 def catat_gagal(kunci: str) -> None:
     with _kunci:
         sekarang = time.time()
@@ -37,3 +42,30 @@ def catat_gagal(kunci: str) -> None:
 def reset(kunci: str) -> None:
     with _kunci:
         _gagal.pop(kunci, None)
+
+
+# ---- batas jumlah permintaan (bukan hanya yang gagal), misalnya pencarian nama ----
+_hitungan: dict[str, list[float]] = {}
+
+
+def boleh(kunci: str, maks: int, jendela: int) -> bool:
+    """True bila permintaan ke-n dalam `jendela` detik terakhir masih <= maks (dan dicatat)."""
+    with _kunci:
+        sekarang = time.time()
+        daftar = [t for t in _hitungan.get(kunci, []) if sekarang - t < jendela]
+        if len(daftar) >= maks:
+            _hitungan[kunci] = daftar
+            return False
+        daftar.append(sekarang)
+        _hitungan[kunci] = daftar
+        return True
+
+
+def ip_klien(request) -> str:
+    """Alamat perangkat yang meminta. Lewat tunnel Cloudflare semua permintaan datang dari 127.0.0.1,
+    alamat asli ada di header CF-Connecting-IP. Header itu hanya dipercaya bila permintaan memang dari
+    laptop ini (tunnel); perangkat di WiFi tidak bisa memalsukannya."""
+    asal = request.client.host if request.client else ""
+    if asal in ("127.0.0.1", "::1"):
+        return (request.headers.get("cf-connecting-ip") or asal).strip()[:64]
+    return asal

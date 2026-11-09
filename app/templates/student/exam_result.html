@@ -12,6 +12,10 @@
       <p class="eyebrow" style="color:var(--amber)">Waktu habis</p>
       <h1 class="h-display">Jawaban <em>tidak terkirim</em></h1>
       <p class="lead">Waktu ujian sudah lewat sebelum jawaban dikirim. Hubungi gurumu kalau ini terjadi karena gangguan.</p>
+      {% elif session.status == 'expired' %}
+      <p class="eyebrow" style="color:var(--amber)">Waktu habis</p>
+      <p class="score-big mt-6">{{ session.score }}</p>
+      <p class="lead">Jawaban yang sempat tersimpan sebelum waktu habis sudah dinilai ({{ persen }}%). {{ benar }} dari {{ answers|length }} soal yang dijawab benar.</p>
       {% else %}
       <p class="eyebrow">Ujian selesai</p>
       <p class="score-big mt-6">{{ session.score if session.score is not none else 0 }}</p>

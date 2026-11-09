@@ -5,6 +5,7 @@ import random
 import secrets
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.concurrency import run_in_threadpool
 import re
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -16,10 +17,11 @@ from app.utils.deps import require_teacher
 
 from app.models.grade import ScoreComponent, Score
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
-from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor
+from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor, tutup_sesi_lewat
 from app.services.rekap import rekap_kelas, urutkan, persen_terbaik, tahun_aktif, KKM, BATAS_REMEDIAL
 from app.services.excel import buku_rekap, buku_ujian
 from app.services.esai import nilai_esai
+from app.services.materi import status_materi, baca_waktu, sekarang as materi_sekarang
 from app.services.impor_soal import periksa, gabung_kode, prompt_ai, CONTOH, PROMPT
 import json
 from datetime import datetime, timezone
@@ -49,42 +51,81 @@ templates_env = Environment(loader=FileSystemLoader(BASE_DIR / "templates"))
 from app.services.teks import pasang as _pasang_filter
 _pasang_filter(templates_env)   # filter |soal: teks soal aman + blok kode
 
+PESAN_MATERI = {
+    "dibuka": "Materi dibuka untuk siswa.",
+    "terjadwal": "Materi dijadwalkan. Siswa melihatnya mulai waktu yang Anda pilih.",
+    "ditutup": "Materi ditutup untuk siswa.",
+    "disimpan": "Materi disimpan.",
+    "dihapus": "Materi dihapus.",
+    "lewat": "Batas tutup harus di masa depan. Kosongkan bila materi dibuka sampai Anda tutup sendiri.",
+    "urutan": "Waktu tutup harus setelah waktu mulai tampil.",
+    "isian": "Judul wajib diisi dan kelas harus VII, VIII, atau IX.",
+}
+
+
 @router.get("/materials", response_class=HTMLResponse)
 # Halaman daftar materi guru
 async def list_materials(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    # Satpam require_teacher akan memastikan hanya guru yang bisa melihat ini
-    
     materials = db.query(Material).order_by(Material.created_at.desc()).all()
-    # Mengambil semua materi dari database, diurutkan dari terbaru
-    
+    kini = materi_sekarang()
+    status = {m.id: status_materi(m, kini) for m in materials}
+    pesan = request.query_params.get("pesan")
     template = templates_env.get_template("teacher/materials.html")
-    html_content = template.render(request=request, materials=materials, now_ts=datetime.now(timezone.utc).timestamp(), user=user)
-    # Mengirim data materi dan data user ke template HTML
-    
+    html_content = template.render(request=request, materials=materials, status=status, pesan=pesan,
+                                   teks_pesan=PESAN_MATERI.get(pesan), user=user)
     return HTMLResponse(content=html_content)
 
+
+def _isian_materi(form):
+    judul = (form.get("title") or "").strip()[:200]
+    kelas = form.get("class_target")
+    if not judul or kelas not in TINGKAT:
+        return None
+    return {"title": judul, "class_target": kelas, "description": (form.get("description") or "").strip()[:300] or None,
+            "content": (form.get("content") or "")[:500_000]}
+
+
 @router.post("/materials/create")
-# Proses saat guru mengirim form buat materi baru
 async def create_material(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
-    form = await request.form()
-    # Ambil data dari form HTML
-    
-    new_material = Material(
-        title=form.get("title"),
-        description=form.get("description"),
-        content=form.get("content"),
-        class_target=form.get("class_target"),
-        teacher_id=int(user.get("sub"))
-        # teacher_id diambil dari ID guru yang login (ada di dalam JWT)
-    )
-    db.add(new_material)
+    isian = _isian_materi(await request.form())
+    if not isian:
+        return RedirectResponse(url="/teacher/materials?pesan=isian", status_code=303)
+    db.add(Material(teacher_id=int(user.get("sub")), **isian))
     db.commit()
-    db.refresh(new_material)
-    # Simpan ke database
-    
-    return RedirectResponse(url="/teacher/materials", status_code=303)
-    # Kembali ke halaman daftar materi
+    return RedirectResponse(url="/teacher/materials?pesan=disimpan", status_code=303)
+
+
+@router.get("/materials/{material_id}", response_class=HTMLResponse)
+# Pratinjau: tampil persis seperti di layar siswa
+async def view_material(material_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    m = db.query(Material).filter(Material.id == material_id).first()
+    if not m:
+        return RedirectResponse(url="/teacher/materials", status_code=303)
+    template = templates_env.get_template("teacher/material_view.html")
+    return HTMLResponse(content=template.render(request=request, m=m, status=status_materi(m), user=user))
+
+
+@router.get("/materials/{material_id}/edit", response_class=HTMLResponse)
+async def edit_material_page(material_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    m = db.query(Material).filter(Material.id == material_id).first()
+    if not m:
+        return RedirectResponse(url="/teacher/materials", status_code=303)
+    template = templates_env.get_template("teacher/material_edit.html")
+    return HTMLResponse(content=template.render(request=request, m=m, user=user, pesan=request.query_params.get("pesan")))
+
+
+@router.post("/materials/{material_id}/edit")
+async def edit_material(material_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    isian = _isian_materi(await request.form())      # form dibaca sebelum memegang koneksi database
+    m = db.query(Material).filter(Material.id == material_id).first()
+    if not m:
+        return RedirectResponse(url="/teacher/materials", status_code=303)
+    if not isian:
+        return RedirectResponse(url=f"/teacher/materials/{material_id}/edit?pesan=isian", status_code=303)
+    for k, v in isian.items():
+        setattr(m, k, v)
+    db.commit()
+    return RedirectResponse(url="/teacher/materials?pesan=disimpan", status_code=303)
 
     # --- TAMBAHAN FASE 7: BANK SOAL ---
 
@@ -157,10 +198,10 @@ def _kunci_teks(t: str) -> str:
 @router.post("/question-banks/{bank_id}/import")
 # Impor soal dari JSON hasil AI: "periksa" menampilkan pratinjau, "simpan" menyimpan bila tanpa kesalahan
 async def import_questions(bank_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()                     # form dibaca sebelum memegang koneksi database
     bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
     if not bank:
         return RedirectResponse(url="/teacher/question-banks", status_code=303)
-    form = await request.form()
     teks = (form.get("teks") or "")[:400_000]
     hasil = periksa(teks)
     ada = {_kunci_teks(q.text) for q in db.query(Question.text).filter(Question.bank_id == bank_id)}
@@ -336,6 +377,7 @@ async def toggle_publish(exam_id: int, request: Request, db: Session = Depends(g
 # Melihat hasil pengerjaan ujian oleh siswa
 async def exam_results(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    tutup_sesi_lewat(db, [exam_id])     # sesi yang waktunya habis tanpa terkirim: nilai dari log
     if not exam:
         return RedirectResponse(url="/teacher/exams", status_code=303)
     total_poin = db.query(func.coalesce(func.sum(Question.points), 0)).filter(Question.bank_id == exam.bank_id).scalar() or 0
@@ -384,7 +426,9 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
                   .filter(RemedialRequest.exam_id == exam_id, RemedialRequest.status == "pending")
                   .order_by(RemedialRequest.created_at).all())
     template = templates_env.get_template("teacher/exam_results.html")
+    ada_esai = db.query(Question.id).filter(Question.bank_id == exam.bank_id, Question.question_type == "esai").first() is not None
     html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan, urut=urut, urutan=URUTAN,
+                                   ada_esai=ada_esai, pesan=request.query_params.get("pesan"), n=request.query_params.get("n", "0"),
                                    batas=BATAS_REMEDIAL, total_poin=total_poin, user=user)
     return HTMLResponse(content=html_content)
 
@@ -624,7 +668,7 @@ def reset_pin_siswa(db, ids):
 
 @router.post("/students/{student_id}/reset-pin")
 async def reset_pin(student_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    daftar = reset_pin_siswa(db, [student_id])
+    daftar = await run_in_threadpool(reset_pin_siswa, db, [student_id])
     if not daftar:
         return RedirectResponse(url="/teacher/students", status_code=303)
     return halaman_pin(request, daftar, user, judul="PIN baru", reset=True)
@@ -647,7 +691,9 @@ async def change_password(request: Request, db: Session = Depends(get_db), user=
     if ratelimit.sisa_kunci_detik(kunci):
         return RedirectResponse(url="/teacher/account?pesan=terkunci", status_code=303)
     akun = db.query(User).filter(User.id == int(user.get("sub"))).first()
-    if not akun or not verify_password(lama, akun.hashed_password):
+    hash_lama = akun.hashed_password if akun else None
+    db.rollback()   # lepaskan koneksi sebelum menunggu Argon2
+    if not hash_lama or not await run_in_threadpool(verify_password, lama, hash_lama):
         ratelimit.catat_gagal(kunci)          # cegah menebak password lama dari komputer yang ditinggal login
         return RedirectResponse(url="/teacher/account?pesan=lama", status_code=303)
     if baru != ulang:
@@ -655,7 +701,9 @@ async def change_password(request: Request, db: Session = Depends(get_db), user=
     if len(baru) < 8 or len(baru) > 128 or baru.lower() in PASSWORD_UMUM or baru == lama:
         return RedirectResponse(url="/teacher/account?pesan=lemah", status_code=303)
     ratelimit.reset(kunci)
-    akun.hashed_password = hash_password(baru)
+    hash_baru = await run_in_threadpool(hash_password, baru)
+    akun = db.query(User).filter(User.id == int(user.get("sub"))).first()
+    akun.hashed_password = hash_baru
     db.commit()
     # perangkat lain yang masih login otomatis keluar; perangkat ini diberi karcis baru
     from app.routers.auth import pasang_cookie_login
@@ -670,6 +718,9 @@ async def change_password(request: Request, db: Session = Depends(get_db), user=
 async def bulk_create_students(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     form = await request.form()
     names_text = form.get("names_text") # Ambil teks dari textarea
+    names = [n.strip()[:100] for n in (names_text or "").split("\n") if n.strip()][:300]
+    # PIN & hash dibuat dulu (di thread terpisah), sebelum memegang koneksi database
+    pin_siap = await run_in_threadpool(lambda: [(p, hash_password(p)) for p in (pin_baru() for _ in names)])
 
     # Rombel tujuan dari dropdown (boleh kosong = siswa belum masuk rombel)
     rombel = None
@@ -679,14 +730,8 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
             raise HTTPException(status_code=400, detail="Rombel tidak ditemukan")
         tahun = tahun_ajaran_aktif(db)
     
-    # Pisahkan teks berdasarkan baris baru (enter)
-    names = [n.strip()[:100] for n in (names_text or "").split("\n") if n.strip()][:300]
-    
     created_students = []
-    for name in names:
-        # Generate PIN 4 digit random (1000-9999)
-        pin = pin_baru()
-        pin_hash = hash_password(pin)
+    for name, (pin, pin_hash) in zip(names, pin_siap):
         
         new_student = Student(
             name=name,
@@ -813,12 +858,12 @@ async def session_detail(exam_id: int, session_id: int, request: Request, db: Se
 @router.post("/answers/{answer_id}/score")
 async def override_essay_score(answer_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     # Guru mengoreksi poin esai; kosongkan isian untuk kembali ke nilai otomatis
+    form = await request.form()                     # form dibaca sebelum memegang koneksi database
     jawaban = db.query(ExamAnswer).filter(ExamAnswer.id == answer_id).first()
     if not jawaban:
         return RedirectResponse(url="/teacher/exams", status_code=303)
     sesi = db.query(ExamSession).filter(ExamSession.id == jawaban.session_id).first()
     soal = db.query(Question).filter(Question.id == jawaban.question_id).first()
-    form = await request.form()
     teks = (form.get("points") or "").strip().replace(",", ".")
     try:
         jawaban.manual_points = None if teks == "" else max(0.0, min(float(soal.points or 0), float(teks)))
@@ -827,6 +872,31 @@ async def override_essay_score(answer_id: int, request: Request, db: Session = D
     hitung_ulang_skor(db, sesi)
     db.commit()
     return RedirectResponse(url=f"/teacher/exams/{sesi.exam_id}/sessions/{sesi.id}?tersimpan=1#soal-{soal.id}", status_code=303)
+
+
+# --- HITUNG ULANG ESAI: setelah aturan penilaian diperbarui / kunci diperbaiki ---
+@router.post("/exams/{exam_id}/recalc")
+async def recalc_essays(exam_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        return RedirectResponse(url="/teacher/exams", status_code=303)
+    sesi_ids = [s.id for s in db.query(ExamSession.id).filter(ExamSession.exam_id == exam_id, ExamSession.status != "active")]
+    berubah = 0
+    if sesi_ids:
+        for jawab, soal in (db.query(ExamAnswer, Question).join(Question, Question.id == ExamAnswer.question_id)
+                            .filter(ExamAnswer.session_id.in_(sesi_ids), Question.question_type == "esai")):
+            hasil = nilai_esai(jawab.answer_text or "", soal.answer_key, soal.keywords)
+            poin = round((soal.points or 0) * hasil["persen"], 1)
+            if jawab.auto_points != poin:
+                berubah += 1
+            jawab.auto_points, jawab.similarity = poin, hasil["kemiripan"]
+            if jawab.manual_points is None:            # koreksi guru tetap dihormati
+                jawab.is_correct = hasil["persen"] >= 1
+        db.flush()
+        for sesi in db.query(ExamSession).filter(ExamSession.id.in_(sesi_ids)):
+            hitung_ulang_skor(db, sesi)
+        db.commit()
+    return RedirectResponse(url=f"/teacher/exams/{exam_id}/results?pesan=hitung&n={berubah}", status_code=303)
 
 
 # --- REMEDIAL DARI GURU: memberi izin mengulang tanpa menunggu siswa mengajukan ---
@@ -861,22 +931,25 @@ async def decide_remedial(request_id: int, keputusan: str, db: Session = Depends
 # --- KISI-KISI: buka / tutup materi untuk siswa ---
 @router.post("/materials/{material_id}/visibility")
 async def material_visibility(material_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()                     # form dibaca sebelum memegang koneksi database
     material = db.query(Material).filter(Material.id == material_id).first()
-    if material:
-        form = await request.form()
-        if form.get("action") == "open":
-            material.is_published = True
-            batas = (form.get("close_at") or "").strip()
-            try:
-                # input datetime-local tanpa zona: dianggap jam di komputer server (WIB)
-                material.close_at = datetime.strptime(batas, "%Y-%m-%dT%H:%M").astimezone() if batas else None
-            except ValueError:
-                material.close_at = None
-        else:
-            material.is_published = False
-            material.close_at = None
+    if not material:
+        return RedirectResponse(url="/teacher/materials", status_code=303)
+    if form.get("action") != "open":
+        material.is_published, material.open_at, material.close_at = False, None, None
         db.commit()
-    return RedirectResponse(url="/teacher/materials", status_code=303)
+        return RedirectResponse(url="/teacher/materials?pesan=ditutup", status_code=303)
+    kini = materi_sekarang()
+    mulai, tutup = baca_waktu(form.get("open_at")), baca_waktu(form.get("close_at"))
+    if tutup and tutup <= kini:            # dulu diterima diam-diam -> langsung "Batas waktu lewat"
+        return RedirectResponse(url="/teacher/materials?pesan=lewat", status_code=303)
+    if mulai and tutup and tutup <= mulai:
+        return RedirectResponse(url="/teacher/materials?pesan=urutan", status_code=303)
+    material.is_published = True
+    material.open_at = mulai if mulai and mulai > kini else None
+    material.close_at = tutup
+    db.commit()
+    return RedirectResponse(url=f"/teacher/materials?pesan={'terjadwal' if material.open_at else 'dibuka'}", status_code=303)
 
 # --- KELUARKAN SISWA DARI ROMBEL ---
 # Hanya menghapus keanggotaan (enrollment). Akun siswa dan nilainya tetap ada.
@@ -895,7 +968,7 @@ async def create_student(request: Request, db: Session = Depends(get_db), user=D
     nama = (form.get("name") or "").strip()[:100]
     if not nama or not pin.isdigit() or not 4 <= len(pin) <= 6:
         return RedirectResponse(url="/teacher/students?pesan=pin_salah", status_code=303)
-    pin_hash = hash_password(pin)
+    pin_hash = await run_in_threadpool(hash_password, pin)
     new_student = Student(
         name=nama,
         nipd=(form.get("nipd") or "").strip()[:30] or None,
@@ -917,7 +990,7 @@ async def delete_material(material_id: int, db: Session = Depends(get_db), user=
     if material:
         db.delete(material)
         db.commit()
-    return RedirectResponse(url="/teacher/materials", status_code=303)
+    return RedirectResponse(url="/teacher/materials?pesan=dihapus", status_code=303)
 
 # --- DELETE KOMPONEN NILAI ---
 @router.post("/grades/components/{comp_id}/delete")
@@ -1006,7 +1079,7 @@ async def bulk_students(request: Request, db: Session = Depends(get_db), user=De
         return RedirectResponse(url=kembali, status_code=303)
 
     if aksi == "reset_pin":
-        return halaman_pin(request, reset_pin_siswa(db, ids), user, judul="PIN baru", reset=True)
+        return halaman_pin(request, await run_in_threadpool(reset_pin_siswa, db, ids), user, judul="PIN baru", reset=True)
 
     if aksi == "delete":
         return RedirectResponse(url=f"/teacher/students/delete?ids={','.join(map(str, ids))}", status_code=303)

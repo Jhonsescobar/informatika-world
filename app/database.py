@@ -11,7 +11,15 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.config import DATABASE_URL
 # Mengimpor alamat database dari file config.py yang baru saja kita buat
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=20, max_overflow=20,   # cukup untuk 40 siswa bersamaan
+    pool_timeout=10,                 # koneksi habis: gagal dalam 10 dtk, bukan menunggu tanpa batas
+    pool_pre_ping=True,              # koneksi yang putus (PostgreSQL restart / laptop tidur) diganti otomatis
+)
+# ATURAN: di route `async def`, jangan `await` (request.form, run_in_threadpool, dst.) setelah memakai `db`
+# tanpa db.rollback()/commit() dulu. Koneksi yang dipegang sambil menunggu bisa membuat server macet total
+# (ditemukan saat simulasi 30 siswa, 9 Nov 2026).
 # Membuat mesin koneksi ke PostgreSQL menggunakan URL yang ada di .env
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

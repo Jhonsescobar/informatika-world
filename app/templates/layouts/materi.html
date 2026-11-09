@@ -1,0 +1,24 @@
+{# Isi materi untuk guru (pratinjau) dan siswa. Teks: format ringan yang aman. HTML: iframe ber-sandbox
+   (tanpa allow-same-origin: skrip di materi tidak bisa membaca login, cookie, atau halaman ujian). #}
+{% macro isi_materi(m) %}
+{% if m.content and m.content|isi_html %}
+<div class="materi-html panel panel-tight">
+  <iframe class="materi-frame" id="materi-frame" sandbox="allow-scripts" referrerpolicy="no-referrer" title="{{ m.title|e }}"
+          srcdoc="{{ m.content|dokumen_iframe|e }}"></iframe>
+</div>
+<p class="mt-2 text-xs dim">Materi interaktif. Bila ada gambar atau bagian dari internet yang tidak tampil saat mode jaringan lokal, isi materi perlu menyimpan semuanya di dalam file.</p>
+<script>
+  // tinggi iframe mengikuti isi materi (pesan hanya diterima dari iframe ini)
+  (function () {
+    const f = document.getElementById('materi-frame');
+    window.addEventListener('message', (e) => {
+      if (e.source !== f.contentWindow || !e.data || typeof e.data.iwTinggi !== 'number') return;
+      const h = Math.max(160, Math.min(30000, Math.round(e.data.iwTinggi)));
+      if (Math.abs(parseInt(f.style.height || '0', 10) - h) > 2) f.style.height = h + 'px';
+    });
+  })();
+</script>
+{% else %}
+<article class="panel reader materi-teks">{% if m.content %}{{ m.content|format_materi }}{% else %}<p class="dim">Isi belum ditulis guru.</p>{% endif %}</article>
+{% endif %}
+{% endmacro %}

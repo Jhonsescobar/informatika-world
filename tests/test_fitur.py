@@ -76,8 +76,12 @@ def test_kisi_kisi_per_tingkat_dan_batas_waktu(guru, db, data, masuk_siswa):
     assert ani.get(f"/student/materials/{m8.id}").status_code == 303        # beda tingkat lewat URL
     baca = ani.get(f"/student/materials/{m7.id}").text
     assert "iw-guard.js" in baca and 'class="watermark"' in baca
-    guru.post(f"/teacher/materials/{m7.id}/visibility", data={"action": "open", "close_at": "2020-01-01T08:00"})
-    assert ani.get(f"/student/materials/{m7.id}").status_code == 303        # batas waktu lewat
+    # batas waktu lewat (diatur langsung, karena form menolak tanggal yang sudah lewat)
+    from datetime import datetime, timedelta, timezone
+    db.expire_all()
+    db.get(Material, m7.id).close_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    db.commit()
+    assert ani.get(f"/student/materials/{m7.id}").status_code == 303
 
 
 def test_pelanggaran_dihitung_server(db, data, masuk_siswa):

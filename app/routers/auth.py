@@ -8,7 +8,9 @@
 #   POST /auth/student/verify   cek PIN siswa (dibatasi 5x salah / 10 menit)
 #   POST /logout                hapus cookie login
 
+import re
 from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -29,6 +31,11 @@ def pasang_cookie_login(request: Request, response, token: str):
                         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, samesite="lax", secure=https)
 
 router = APIRouter(tags=["Auth"])
+
+# Satu kelas lewat WiFi sekolah / tunnel terlihat sebagai SATU alamat: batas per perangkat harus muat
+# 30-40 siswa yang login bersamaan (tiap siswa ±10 pencarian saat mengetik nama, kadang salah PIN).
+BATAS_CARI_PER_MENIT = 600
+BATAS_PIN_SALAH_PER_PERANGKAT = 200   # per 10 menit
 
 BASE_DIR = Path(__file__).resolve().parent.parent          # folder app/
 templates_env = Environment(loader=FileSystemLoader(BASE_DIR / "templates"))  # cari template di app/templates/
@@ -69,16 +76,20 @@ async def login_teacher(request: Request, db: Session = Depends(get_db)):
     email = form_data.get("email")                   # field name="email" di login_guru.html
     password = form_data.get("password")             # field name="password" di login_guru.html
 
-    kunci = "guru:" + (email or "").strip().lower()
+    # kunci per email + perangkat: orang lain yang sengaja salah password tidak bisa mengunci guru dari laptopnya
+    kunci = "guru:" + (email or "").strip().lower() + "@" + ratelimit.ip_klien(request)
     if ratelimit.sisa_kunci_detik(kunci):              # terlalu banyak salah: tunggu dulu
         return RedirectResponse(url="/login/guru?error=terkunci", status_code=303)
     user = db.query(User).filter(User.email == email).first()   # cari user berdasarkan email
-    if not user or not user.is_active or not verify_password(password or "", user.hashed_password):
+    hash_tersimpan = user.hashed_password if user and user.is_active else None
+    db.rollback()   # lepaskan koneksi database SEBELUM menunggu (lihat lepas_lalu_tunggu di bawah)
+    # Argon2 sengaja lambat (±0,1 dtk): dijalankan di thread terpisah agar siswa lain tidak ikut tertahan
+    if not hash_tersimpan or not await run_in_threadpool(verify_password, password or "", hash_tersimpan):
         ratelimit.catat_gagal(kunci)
         return RedirectResponse(url="/login/guru?error=salah", status_code=303)
     ratelimit.reset(kunci)
 
-    token_data = {"sub": str(user.id), "role": user.role, "v": sidik(user.hashed_password)}       # isi token: id user + role
+    token_data = {"sub": str(user.id), "role": user.role, "v": sidik(hash_tersimpan)}       # isi token: id user + role
     access_token = create_access_token(data=token_data)         # bikin token JWT
 
     response = RedirectResponse(url="/teacher/dashboard", status_code=303)  # berhasil -> dashboard guru
@@ -94,13 +105,18 @@ async def login_teacher(request: Request, db: Session = Depends(get_db)):
 # Minimal 3 huruf supaya daftar nama siswa tidak bisa diintip dengan mengetik 1 huruf.
 # Hanya siswa aktif yang muncul, diurutkan A-Z, maksimal 10 nama.
 @router.get("/auth/student/search")
-async def search_student(name: str, db: Session = Depends(get_db)):
-    keyword = name.strip()                            # buang spasi di awal/akhir teks
-    if len(keyword) < 3:                              # kurang dari 3 huruf: jangan tampilkan nama apa pun
+async def search_student(name: str, request: Request, db: Session = Depends(get_db)):
+    keyword = name.strip()[:60]                       # buang spasi di awal/akhir teks
+    # huruf saja yang dihitung: "%%%" atau "___" dulu menampilkan nama siapa pun
+    if len(re.sub(r"[^A-Za-z]", "", keyword)) < 3:
         return []
+    # batas per perangkat: mencegah daftar nama siswa disedot otomatis dari internet
+    if not ratelimit.boleh("cari:" + ratelimit.ip_klien(request), BATAS_CARI_PER_MENIT, 60):
+        return []
+    keyword = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     students = (                                       # cari siswa yang namanya MENGANDUNG kata kunci
         db.query(Student)
-        .filter(Student.name.ilike(f"%{keyword}%"))    # ilike = tidak peduli huruf besar/kecil
+        .filter(Student.name.ilike(f"%{keyword}%", escape="\\"))    # ilike = tidak peduli huruf besar/kecil
         .filter(Student.is_active == True)             # siswa nonaktif tidak bisa login, jadi tidak ditampilkan
         .order_by(Student.name)                        # urutkan A-Z supaya hasil konsisten
         .limit(10)                                     # maksimal 10 nama (dulu 5, dinaikkan karena 1 huruf bisa cocok banyak nama)
@@ -132,17 +148,24 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login/siswa", status_code=303)
     kembali = f"/student/verify?student_id={int(student_id)}"
     kunci = f"siswa:{int(student_id)}"
+    kunci_ip = "pin-ip:" + ratelimit.ip_klien(request)
+    # satu perangkat yang mencoba PIN banyak siswa sekaligus ikut dikunci
+    if ratelimit.jumlah_gagal(kunci_ip) >= BATAS_PIN_SALAH_PER_PERANGKAT:
+        return RedirectResponse(url=f"/student/verify?student_id={int(student_id)}&error=terkunci", status_code=303)
     if ratelimit.sisa_kunci_detik(kunci):              # 5x salah dalam 10 menit: PIN dikunci sementara
         return RedirectResponse(url=kembali + "&error=terkunci", status_code=303)
     student = db.query(Student).filter(Student.id == int(student_id)).first()   # cari siswa berdasarkan id
     if not student or not student.is_active:           # tidak ada / dinonaktifkan guru
         return RedirectResponse(url="/login/siswa", status_code=303)
-    if not verify_password(pin or "", student.pin_hash):
+    hash_tersimpan = student.pin_hash
+    db.rollback()   # lepaskan koneksi database sebelum menunggu: 15 siswa login bersamaan dulu bisa membuat server macet
+    if not await run_in_threadpool(verify_password, pin or "", hash_tersimpan):
         ratelimit.catat_gagal(kunci)
+        ratelimit.catat_gagal(kunci_ip)
         return RedirectResponse(url=kembali + "&error=pin", status_code=303)
     ratelimit.reset(kunci)
 
-    token_data = {"sub": str(student.id), "role": "student", "v": sidik(student.pin_hash)}   # isi token: id siswa + role student
+    token_data = {"sub": str(int(student_id)), "role": "student", "v": sidik(hash_tersimpan)}   # isi token: id siswa + role student
     access_token = create_access_token(data=token_data)        # bikin token JWT
 
     response = RedirectResponse(url="/student/dashboard", status_code=303)  # berhasil -> dashboard siswa

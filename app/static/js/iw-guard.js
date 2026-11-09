@@ -41,7 +41,7 @@
     const sekarang = Date.now();
     if (sekarang - jedaTerakhir < JEDA_SATU_KEJADIAN) return;
     jedaTerakhir = sekarang;
-    if (mode !== 'exam') { tutupLayar('Isi kisi-kisi ditutup saat kamu meninggalkan halaman ini.', 'Isi disembunyikan', 'Lanjut membaca'); return; }
+    if (mode !== 'exam') { tutupLayar('Isi materi ditutup saat kamu meninggalkan halaman ini.', 'Isi disembunyikan', 'Lanjut membaca'); return; }
     const hasil = await catat(jenis || 'pindah_tab');
     peringatan(hasil);
   }
@@ -73,7 +73,11 @@
   };
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) keluarHalaman(); });
-  window.addEventListener('blur', () => { setTimeout(() => { if (!document.hasFocus()) keluarHalaman(); }, 150); });
+  // klik di dalam materi interaktif (iframe) juga memicu blur: itu bukan keluar halaman
+  window.addEventListener('blur', () => { setTimeout(() => {
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') return;
+    if (!document.hasFocus()) keluarHalaman();
+  }, 150); });
 
   // ---- layar penuh (mode ujian) ----
   document.addEventListener('fullscreenchange', () => {

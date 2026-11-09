@@ -51,7 +51,18 @@ def aset(jalur: str) -> str:
     return f"/static/{jalur}?v={versi}"
 
 
+def grup_kunci(teks) -> list[str]:
+    """Cara sistem membaca kata kunci esai, untuk ditampilkan ke guru (tiap item = 1 kata kunci wajib)."""
+    from app.services.esai import baca_kata_kunci, label_grup
+    return [label_grup(g) for g in baca_kata_kunci(teks or "")]
+
+
 def pasang(env):
     """Daftarkan filter & fungsi bantu ke Environment Jinja milik router."""
     env.filters["soal"] = format_soal
+    env.filters["grup_kunci"] = grup_kunci
+    from app.services.materi import format_materi, isi_html, dokumen_iframe
+    env.filters["format_materi"] = format_materi
+    env.filters["isi_html"] = isi_html
+    env.filters["dokumen_iframe"] = dokumen_iframe
     env.globals["aset"] = aset

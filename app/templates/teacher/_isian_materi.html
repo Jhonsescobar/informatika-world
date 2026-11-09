@@ -1,0 +1,13 @@
+{# Isian materi (tambah & edit). m = materi yang diedit, atau tidak ada saat menambah #}
+      <label class="field"><span class="label">Judul</span>
+        <input type="text" name="title" required maxlength="200" class="input" value="{{ m.title|e if m else '' }}"></label>
+      <label class="field"><span class="label">Kelas</span>
+        <select name="class_target" required class="select">
+          {% for k in ['VII', 'VIII', 'IX'] %}<option value="{{ k }}" {{ 'selected' if m and m.class_target == k }}>Kelas {{ k }}</option>{% endfor %}
+        </select></label>
+      <label class="field"><span class="label">Deskripsi singkat</span>
+        <input type="text" name="description" maxlength="300" class="input" value="{{ (m.description or '')|e if m else '' }}"></label>
+      <label class="field"><span class="label">Isi materi</span>
+        <textarea name="content" rows="{{ 16 if m else 8 }}" class="textarea kode-isian" spellcheck="false" style="font-size:13px">{{ (m.content or '')|e if m else '' }}</textarea>
+        <span class="text-xs dim">Teks biasa boleh memakai: <span class="mono"># Judul</span>, <span class="mono">- poin</span>, <span class="mono">**tebal**</span>, <span class="mono">`kode`</span>, blok <span class="mono">```</span>, <span class="mono">[tautan](https://...)</span>.
+          Bisa juga menempel HTML utuh (media ajar interaktif buatan AI): tampil di kotak aman, siswa tidak bisa menyalinnya.</span></label>

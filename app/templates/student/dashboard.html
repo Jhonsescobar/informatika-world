@@ -6,6 +6,9 @@
 {% set sisa = exams|rejectattr('id', 'in', selesai)|list|length %}
 {% block lead %}<p class="lead">{% if not tingkat %}Kamu belum masuk rombel. Minta gurumu memasukkanmu ke rombel supaya ujian muncul.{% elif sisa %}Ada {{ sisa }} ujian yang bisa kamu kerjakan. Waktu mulai berjalan saat kamu menekan Mulai, dan tiap ujian hanya bisa dikerjakan sekali.{% elif exams %}Semua ujian sudah kamu kerjakan.{% else %}Belum ada ujian yang dibuka guru.{% endif %}</p>{% endblock %}
 {% block content %}
+{% if materi %}
+<a href="/student/materials" class="notice mb-5" style="text-decoration:none;display:flex">{{ icon('book') }}<span><strong>{{ materi|length }} materi</strong> dibuka gurumu untuk kelasmu: {{ materi|map(attribute='title')|map('e')|join(', ') }}. Ketuk untuk membaca.</span></a>
+{% endif %}
 <section class="stack" aria-label="Ujian tersedia">
   {% for exam in exams %}
   <article class="panel">

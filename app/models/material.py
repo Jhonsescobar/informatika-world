@@ -32,4 +32,5 @@ class Material(Base):
     # Materi tampil di sisi siswa sebagai kisi-kisi hanya bila dibuka guru,
     # dan otomatis tertutup setelah close_at (kosong = terbuka sampai ditutup manual)
     is_published = Column(Boolean, nullable=False, default=False, server_default=false())
+    open_at = Column(DateTime(timezone=True), nullable=True)    # kosong = langsung tampil saat dibuka
     close_at = Column(DateTime(timezone=True), nullable=True)

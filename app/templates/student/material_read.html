@@ -1,20 +1,21 @@
-{# Halaman baca kisi-kisi: tidak bisa diseleksi, disalin, atau dicetak; isi tertutup saat siswa meninggalkan halaman #}
+{# Halaman baca materi: tidak bisa diseleksi, disalin, atau dicetak; isi tertutup saat siswa meninggalkan halaman #}
 {% extends "layouts/student.html" %}
 {% from "layouts/icons.html" import icon %}
 {% from "layouts/guard.html" import watermark, shield %}
-{% block title %}{{ m.title|e }} · Kisi-kisi{% endblock %}
-{% block eyebrow %}Kisi-kisi · Kelas {{ m.class_target }}{% endblock %}
+{% from "layouts/materi.html" import isi_materi %}
+{% block title %}{{ m.title|e }} · Materi{% endblock %}
+{% block eyebrow %}Materi · Kelas {{ m.class_target }}{% endblock %}
 {% block heading %}{{ m.title|e }}{% endblock %}
 {% block lead %}
 {% if m.description %}<p class="lead">{{ m.description|e }}</p>{% endif %}
-{% if m.close_at %}<p class="mt-4"><span class="chip chip-amber chip-dot">Ditutup {{ m.close_at.astimezone().strftime('%d/%m/%Y %H:%M') }}</span></p>{% endif %}
+{% if m.close_at %}<p class="mt-4"><span class="chip chip-amber chip-dot">Dibuka sampai {{ m.close_at.astimezone().strftime('%d/%m %H:%M') }}</span></p>{% endif %}
 {% endblock %}
 {% block content %}
-<a href="/student/materials" class="back-link">{{ icon('arrow-left') }}Semua kisi-kisi</a>
-<article class="panel reader" style="white-space:pre-wrap;line-height:1.8;font-size:16px">{{ (m.content or 'Isi belum ditulis guru.')|e }}</article>
+<a href="/student/materials" class="back-link">{{ icon('arrow-left') }}Semua materi</a>
+{{ isi_materi(m) }}
 <p class="mt-4 text-xs dim">Halaman ini diberi tanda nama kamu. Screenshot dan rekaman tetap terlihat milik siapa.</p>
 {{ watermark(student_name, sekarang) }}
-{{ shield('Isi disembunyikan', 'Isi kisi-kisi ditutup saat kamu meninggalkan halaman ini.', 'Lanjut membaca') }}
+{{ shield('Isi disembunyikan', 'Isi materi ditutup saat kamu meninggalkan halaman ini.', 'Lanjut membaca') }}
 {% endblock %}
 {% block scripts %}
 <script>document.body.dataset.guard = 'read'; document.body.classList.add('guarded');</script>

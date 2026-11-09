@@ -1,11 +1,11 @@
 {% extends "layouts/student.html" %}
 {% from "layouts/icons.html" import icon %}
-{% block title %}Kisi-kisi · Informatika World{% endblock %}
-{% block eyebrow %}Kisi-kisi{% endblock %}
-{% block heading %}Bahan <em>sebelum ujian</em>{% endblock %}
-{% block lead %}<p class="lead">Dibuka guru untuk waktu tertentu. Baca dan catat dengan tanganmu sendiri: halaman kisi-kisi tidak bisa disalin atau dicetak.</p>{% endblock %}
+{% block title %}Materi · Informatika World{% endblock %}
+{% block eyebrow %}Materi & kisi-kisi{% endblock %}
+{% block heading %}Bahan <em>untuk dibaca</em>{% endblock %}
+{% block lead %}<p class="lead">Materi yang dibuka gurumu untuk kelasmu. Baca dan catat dengan tanganmu sendiri: halaman materi tidak bisa disalin atau dicetak.</p>{% endblock %}
 {% block content %}
-<section class="stack" aria-label="Kisi-kisi terbuka">
+<section class="stack" aria-label="Materi terbuka">
   {% for m in materials %}
   <a href="/student/materials/{{ m.id }}" class="panel block group" style="text-decoration:none">
     <div class="flex items-start justify-between gap-3">
@@ -13,10 +13,10 @@
       <span class="link-action is-teal shrink-0">Baca {{ icon('arrow-right') }}</span>
     </div>
     {% if m.description %}<p class="mt-2 text-sm muted">{{ m.description|e }}</p>{% endif %}
-    {% if m.close_at %}<p class="mt-4"><span class="chip chip-amber chip-dot">Ditutup {{ m.close_at.astimezone().strftime('%d/%m %H:%M') }}</span></p>{% endif %}
+    {% if m.close_at %}<p class="mt-4"><span class="chip chip-amber chip-dot">Dibuka sampai {{ m.close_at.astimezone().strftime('%d/%m %H:%M') }}</span></p>{% endif %}
   </a>
   {% else %}
-  <div class="empty"><strong>Belum ada kisi-kisi yang dibuka</strong>Gurumu akan membukanya sebelum ujian.</div>
+  <div class="empty"><strong>Belum ada materi yang dibuka</strong>Materi muncul di sini setelah gurumu membukanya untuk kelasmu.</div>
   {% endfor %}
 </section>
 {% endblock %}

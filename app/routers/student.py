@@ -15,7 +15,7 @@ from app.database import get_db
 from app.utils.deps import require_student
 from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
-from app.services.penilaian import id_soal_sesi, total_poin_sesi
+from app.services.penilaian import id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM
 from app.services.rekap import rekap_kelas, BATAS_REMEDIAL as BATAS_REMEDIAL_REKAP
 from app.services.esai import nilai_esai
 import json
@@ -40,7 +40,6 @@ log = logging.getLogger("informatika")
 
 # --- PENGAMAN SESI UJIAN ---
 # Toleransi keterlambatan kirim jawaban (jaringan lambat / tombol ditekan saat waktu habis)
-TOLERANSI_KIRIM = timedelta(minutes=2)
 
 
 def gagal(label: str, kembali: str = "/student/dashboard"):
@@ -101,7 +100,7 @@ async def student_dashboard(request: Request, db: Session = Depends(get_db), use
             RemedialRequest.student_id == student_id, RemedialRequest.status.in_(["pending", "approved"]))}
         template = templates_env.get_template("student/dashboard.html")
         html_content = template.render(request=request, exams=exams, student_id=student_id, selesai=selesai,
-                                       remedial=remedial, tingkat=tingkat,
+                                       remedial=remedial, tingkat=tingkat, materi=materi_terbuka(db, tingkat),
                                        student_name=student.name if student else "", user=user, active_page="home")
         return HTMLResponse(content=html_content)
     except Exception:
@@ -118,6 +117,8 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
         exam = db.query(Exam).filter(Exam.id == exam_id, Exam.is_published == True).first()
         if not exam or exam.class_target != tingkat_siswa(db, student_id):   # belum terbit / bukan tingkatnya
             return RedirectResponse(url="/student/dashboard", status_code=303)
+        # Kunci baris siswa sampai selesai: dua klik "Mulai" bersamaan dulu bisa membuat 2 sesi (2 paket soal)
+        db.query(Student.id).filter(Student.id == student_id).with_for_update().first()
 
         # Satu siswa satu kali mengerjakan: kalau sudah selesai/habis waktu, tampilkan hasilnya
         sesi_lama = db.query(ExamSession).filter(
@@ -128,7 +129,7 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
             if sesi_lama.status == "active" and not sudah_lewat(sesi_lama, TOLERANSI_KIRIM):
                 return RedirectResponse(url=f"/student/exam/take/{sesi_lama.id}", status_code=303)
             if sesi_lama.status == "active":
-                sesi_lama.status = "expired"
+                selesaikan_dari_log(db, sesi_lama, exam)     # nilai dari jawaban yang sempat tersimpan
                 db.commit()
             # Sudah pernah mengerjakan: hanya boleh lagi bila remedial disetujui guru (dipakai sekali)
             izin = db.query(RemedialRequest).filter(RemedialRequest.student_id == student_id,
@@ -177,8 +178,8 @@ async def take_exam(session_id: int, request: Request, db: Session = Depends(get
             return RedirectResponse(url="/student/dashboard", status_code=303)
         if session.status != "active":
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
-        if sudah_lewat(session):
-            session.status = "expired"
+        if sudah_lewat(session, TOLERANSI_KIRIM):
+            selesaikan_dari_log(db, session)
             db.commit()
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
 
@@ -220,67 +221,31 @@ async def take_exam(session_id: int, request: Request, db: Session = Depends(get
 async def submit_exam(session_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
     try:
         student_id = int(user.get("sub"))
-        session = sesi_milik(db, session_id, student_id)
+        form = await request.form()
+        # Kunci baris sesi: dua kiriman bersamaan (klik ganda / jaringan mengulang) dulu bisa tercatat dua kali
+        session = (db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.student_id == student_id)
+                   .with_for_update().first())
         if not session:
             return RedirectResponse(url="/student/dashboard", status_code=303)
         if session.status != "active":          # sudah dikirim / sudah habis: tidak bisa dikirim ulang
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
         if sudah_lewat(session, TOLERANSI_KIRIM):
-            session.status = "expired"
+            # terlambat: isi form tidak dipakai, nilai dari jawaban yang tersimpan sebelum waktu habis
+            selesaikan_dari_log(db, session)
             db.commit()
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
 
         exam = db.query(Exam).filter(Exam.id == session.exam_id).first()
         session.submitted_at = datetime.now(timezone.utc)
         session.status = "completed"
-
-        # Hanya soal yang didapat siswa di sesi ini, dan opsi harus milik soal tersebut (skor dihitung server)
-        ids = id_soal_sesi(db, session, exam)
-        soal = {q.id: q for q in db.query(Question).filter(Question.id.in_(ids))} if ids else {}
-        opsi = {o.id: o for o in db.query(QuestionOption).filter(QuestionOption.question_id.in_(list(soal)))}
-
-        form = await request.form()
-        total_score = 0.0
-        total_wrong = len(soal)
-
-        # Esai: dinilai otomatis dari kemiripan dengan kunci guru (guru bisa mengoreksi)
-        for key, teks in form.items():
-            if not key.startswith("essay_") or not key[6:].isdigit():
-                continue
-            question = soal.get(int(key[6:]))
-            if not question or question.question_type != "esai":
-                continue
-            teks = (teks or "").strip()[:5000]
-            hasil = nilai_esai(teks, question.answer_key, question.keywords)
-            poin = round((question.points or 0) * hasil["persen"], 1)
-            total_score += poin
-            if hasil["persen"] >= 1:
-                total_wrong -= 1
-            db.add(ExamAnswer(session_id=session.id, question_id=question.id, answer_text=teks,
-                              similarity=hasil["kemiripan"], auto_points=poin, is_correct=hasil["persen"] >= 1))
-
-        for key, selected_option_id in form.items():
-            if not key.startswith("question_"):
-                continue
-            try:
-                q_id = int(key.replace("question_", ""))
-                opt_id = int(selected_option_id)
-            except ValueError:
-                continue
-            question = soal.get(q_id)
-            option = opsi.get(opt_id)
-            if not question or question.question_type == "esai" or not option or option.question_id != q_id:
-                continue
-            if option.is_correct:
-                total_score += question.points
-                total_wrong -= 1
-            db.add(ExamAnswer(session_id=session.id, question_id=q_id,
-                              selected_option_id=opt_id, is_correct=option.is_correct))
-        total_score = int(round(total_score))
-        session.score = total_score
+        pilihan, esai = {}, {}
+        for key, nilai in form.items():
+            if key.startswith("essay_") and key[6:].isdigit():
+                esai[int(key[6:])] = nilai if isinstance(nilai, str) else ""
+            elif key.startswith("question_") and key[9:].isdigit() and str(nilai).isdigit():
+                pilihan[int(key[9:])] = int(nilai)
+        total_score, total_wrong = nilai_sesi(db, session, exam, pilihan, esai)
         db.add(ExamEvent(session_id=session.id, kind="kirim", detail="otomatis" if form.get("otomatis") else None))
-        db.commit()
-
         db.commit()
         # -------------------------------------------
         
@@ -343,12 +308,14 @@ async def request_remedial(session_id: int, db: Session = Depends(get_db), user=
 
 # --- LOG AKTIVITAS: soal dilihat, jawaban dipilih/diganti, esai diketik ---
 MAKS_KEJADIAN_SESI = 3000
+MAKS_ESAI_SESI = 400          # salinan teks esai di log (masing-masing <= 5000 huruf): maksimal ±2 MB per sesi
+MAKS_PELANGGARAN_DICATAT = 300
 
 @router.post("/exam/events/{session_id}")
 async def log_events(session_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
     session = sesi_milik(db, session_id, int(user.get("sub")))
-    if not session or session.status != "active":
-        return JSONResponse({"ok": False})
+    if not session or session.status != "active" or sudah_lewat(session, TOLERANSI_KIRIM):
+        return JSONResponse({"ok": False})       # jawaban lewat waktu tidak dicatat
     try:
         data = json.loads((await request.body())[:200_000] or b"[]")
     except ValueError:
@@ -359,6 +326,8 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
     ids = set(id_soal_sesi(db, session, exam))
     opsi_soal = {o.id: o.question_id for o in db.query(QuestionOption).filter(QuestionOption.question_id.in_(list(ids)))}
     sisa = MAKS_KEJADIAN_SESI - db.query(func.count(ExamEvent.id)).filter(ExamEvent.session_id == session.id).scalar()
+    sisa_esai = MAKS_ESAI_SESI - db.query(func.count(ExamEvent.id)).filter(ExamEvent.session_id == session.id,
+                                                                            ExamEvent.kind == "esai").scalar()
     simpan = 0
     for item in data[:100]:
         if simpan >= sisa or not isinstance(item, dict):
@@ -368,6 +337,10 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
             continue
         if jenis == "pilih" and (not isinstance(oid, int) or opsi_soal.get(oid) != qid):
             continue
+        if jenis == "esai":
+            if sisa_esai <= 0:
+                continue
+            sisa_esai -= 1
         detail = str(item.get("d") or "")[:5000] if jenis == "esai" else None
         db.add(ExamEvent(session_id=session.id, kind=jenis, question_id=qid,
                          option_id=oid if jenis == "pilih" else None, detail=detail))
@@ -400,8 +373,10 @@ async def log_violation(session_id: int, request: Request, db: Session = Depends
         return JSONResponse({"count": 0, "limit": MAKS_PELANGGARAN, "active": False})
     form = await request.form()
     jenis = form.get("kind") if form.get("kind") in JENIS_PELANGGARAN else "lainnya"
-    db.add(ExamViolation(session_id=session.id, kind=jenis))
-    db.commit()
+    # batas catatan per sesi: kiriman bertubi-tubi tidak bisa membanjiri database
+    if db.query(func.count(ExamViolation.id)).filter(ExamViolation.session_id == session.id).scalar() < MAKS_PELANGGARAN_DICATAT:
+        db.add(ExamViolation(session_id=session.id, kind=jenis))
+        db.commit()
     # Hanya pindah tab / keluar layar penuh yang dihitung menuju kirim otomatis
     waktu = [w for (w,) in db.query(ExamViolation.created_at).filter(
         ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"]))
@@ -414,6 +389,7 @@ def materi_terbuka(db: Session, tingkat):
     if not tingkat:
         return []
     return (db.query(Material).filter(Material.is_published == True, Material.class_target == tingkat,
+                                      (Material.open_at == None) | (Material.open_at <= sekarang),
                                       (Material.close_at == None) | (Material.close_at > sekarang))
             .order_by(Material.created_at.desc()).all())
 
@@ -424,7 +400,7 @@ async def materials_page(request: Request, db: Session = Depends(get_db), user=D
         template = templates_env.get_template("student/materials.html")
         return HTMLResponse(content=template.render(request=request, materials=materi, active_page="materials"))
     except Exception:
-        return gagal("Kisi-kisi")
+        return gagal("Materi")
 
 @router.get("/materials/{material_id}", response_class=HTMLResponse)
 async def material_read(material_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
@@ -439,7 +415,7 @@ async def material_read(material_id: int, request: Request, db: Session = Depend
                                                     sekarang=datetime.now().strftime("%d/%m/%Y %H:%M"),
                                                     active_page="materials"))
     except Exception:
-        return gagal("Baca kisi-kisi", "/student/materials")
+        return gagal("Baca materi", "/student/materials")
 
 # --- LEADERBOARD ---
 @router.get("/leaderboard", response_class=HTMLResponse)

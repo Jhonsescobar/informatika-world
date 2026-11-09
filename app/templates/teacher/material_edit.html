@@ -1,0 +1,19 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'materials' %}
+{% block title %}Edit {{ m.title|e }} · Materi{% endblock %}
+{% block back %}<a href="/teacher/materials" class="back-link">{{ icon('arrow-left') }}Semua materi</a>{% endblock %}
+{% block eyebrow %}Edit materi{% endblock %}
+{% block heading %}{{ m.title|e }}{% endblock %}
+{% block content %}
+<section class="panel" style="max-width:860px">
+  {% if pesan == 'isian' %}<div class="notice notice-amber mb-4" role="alert">{{ icon('info') }}<span>Judul wajib diisi dan kelas harus VII, VIII, atau IX.</span></div>{% endif %}
+  <form action="/teacher/materials/{{ m.id }}/edit" method="POST" class="flex flex-col gap-4">
+    {% include "teacher/_isian_materi.html" %}
+    <div class="flex flex-wrap gap-3 mt-1">
+      <button type="submit" class="btn btn-primary">Simpan perubahan</button>
+      <a href="/teacher/materials/{{ m.id }}" class="btn btn-ghost">{{ icon('eye') }}Pratinjau</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

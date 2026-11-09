@@ -9,6 +9,7 @@
 {% block lead %}
 <p class="lead">{{ rows|length }} sesi tercatat. Nilai di bawah {{ batas }}% boleh remedial: siswa bisa mengajukan, atau Anda beri langsung dengan tombol <strong>Beri remedial</strong>. Nilai tertinggi yang dipakai.</p>
 <div class="head-actions">
+  {% if ada_esai %}<form action="/teacher/exams/{{ exam.id }}/recalc" method="POST" onsubmit="return confirm('Hitung ulang nilai otomatis semua jawaban esai di ujian ini? Nilai yang sudah Anda koreksi manual tidak berubah.');"><button type="submit" class="btn btn-ghost">{{ icon('refresh') }}Hitung ulang esai</button></form>{% endif %}
   <a href="/teacher/exams/{{ exam.id }}/results/export?urut={{ urut }}" class="btn btn-ghost">{{ icon('download') }}Ekspor Excel</a>
   <a href="/teacher/exams/{{ exam.id }}/analytics" class="btn btn-primary">{{ icon('chart') }}Analitik soal</a>
 </div>
@@ -40,6 +41,7 @@
   </section>
   {% endif %}
 
+  {% if pesan == 'hitung' %}<div class="notice" role="status">{{ icon('check') }}<span>Nilai esai dihitung ulang dengan aturan terbaru: {{ n }} jawaban berubah. Koreksi manual Anda tidak diubah.</span></div>{% endif %}
   <div class="flex flex-wrap items-center gap-2" aria-label="Urutkan">
     <span class="text-xs dim mr-1">Urutkan</span>
     {% for kunci, label in urutan.items() %}

@@ -64,7 +64,8 @@
             {% for o in s.opsi %}<li style="color:{{ 'var(--ok)' if loop.index0 == s.benar else 'var(--muted)' }}">{{ 'ABCDE'[loop.index0] }}. {{ o|soal }}{% if loop.index0 == s.benar %} ✓{% endif %}</li>{% endfor %}
           </ul>
           {% elif s.tipe == 'esai' %}
-          <p class="text-sm mt-2 dim">Kunci: <span class="text-white">{{ s.kunci|e }}</span>{% if s.kata_kunci %} · Kata kunci: <span style="color:var(--amber)">{{ s.kata_kunci|e }}</span>{% endif %}</p>
+          <p class="text-sm mt-2 dim">Kunci: <span class="text-white">{{ s.kunci|e }}</span></p>
+          {% if s.kata_kunci %}<p class="mt-1 flex flex-wrap items-center gap-1 text-xs"><span class="dim">Kata kunci wajib:</span>{% for k in s.kata_kunci|grup_kunci %}<span class="chip">{{ k|e }}</span>{% endfor %}</p>{% endif %}
           {% endif %}
         </li>
         {% endfor %}
@@ -88,7 +89,10 @@
       {% if q.question_type == 'esai' %}
       <div class="grid gap-3 text-sm">
         <div><p class="label">Kunci jawaban</p><p class="mt-1 text-white" style="white-space:pre-wrap">{{ q.answer_key|e }}</p></div>
-        {% if q.keywords %}<div><p class="label">Kata kunci wajib</p><p class="mt-1" style="color:var(--amber)">{{ q.keywords|e }}</p></div>{% endif %}
+        {% if q.keywords %}<div><p class="label">Kata kunci wajib</p><p class="mt-1" style="color:var(--amber)">{{ q.keywords|e }}</p>
+          {% set g = q.keywords|grup_kunci %}
+          <p class="mt-2 text-xs dim">Dibaca sistem sebagai {{ g|length }} kata kunci wajib:</p>
+          <p class="mt-1 flex flex-wrap gap-1">{% for k in g %}<span class="chip">{{ k|e }}</span>{% endfor %}</p></div>{% endif %}
       </div>
       {% else %}
       <ul class="grid gap-2 sm:grid-cols-2">
@@ -129,8 +133,8 @@
         <label class="field"><span class="label">Kunci jawaban</span>
           <textarea name="answer_key" rows="3" class="textarea" placeholder="perangkat yang dapat disentuh dan dilihat&#10;(boleh beberapa jawaban, satu per baris)"></textarea></label>
         <label class="field"><span class="label">Kata kunci wajib (opsional)</span>
-          <input type="text" name="keywords" class="input" placeholder="sentuh/raba, fisik/nyata">
-          <span class="text-xs dim">Pisahkan dengan koma. Sinonim dengan garis miring. Bila diisi, nilai terutama dari kata kunci ini.</span></label>
+          <input type="text" name="keywords" class="input" placeholder="cpu/central processing unit, ram, motherboard">
+          <span class="text-xs dim">Satu kata kunci wajib = satu bagian dipisah koma. Sinonim dengan garis miring (cpu/central processing unit). Tulis kata atau frasa pendek, bukan kalimat: semua kata dalam frasa harus ada di jawaban.</span></label>
       </div>
       <div class="grid gap-3 sm:grid-cols-2 bagian-pg">
         {% for huruf in ['A', 'B', 'C', 'D'] %}
