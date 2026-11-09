@@ -1,6 +1,6 @@
 # Progres Informatika World
 
-Status per 8 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan prioritas.
+Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan prioritas.
 
 ## Sudah selesai
 
@@ -13,6 +13,10 @@ Status per 8 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 ### Fitur guru
 - [x] Materi: tambah, lihat, hapus
 - [x] Bank soal & soal pilihan ganda: tambah, lihat, hapus bank (ikut menghapus soal, ujian, dan jawaban)
+- [x] Bank soal 2 mode: **Manual** atau **Tempel dari AI** (prompt siap salin, JSON dirapikan otomatis, kesalahan per nomor, pratinjau sebelum simpan, soal kembar dilewati, maks 100 soal sekali impor)
+- [x] Soal boleh berisi potongan kode Python (blok kode rapi di layar siswa, aman dari HTML/skrip)
+- [x] Hapus satu soal (terkunci bila ujian dari bank itu sudah pernah dikerjakan)
+- [x] Perbaikan: opsi PG di halaman bank soal sebelumnya tidak tampil
 - [x] Ujian: buat, terbitkan / tarik, hasil per siswa, analitik 3 soal tersulit, hapus
 - [x] Komponen nilai & bobot per tingkat (total ≤ 100% divalidasi); ujian dipilihkan komponen saat dibuat
 - [x] Rekap nilai akhir per tingkat: hanya tahun ajaran aktif, nilai tertinggi tiap ujian, urut nilai / A–Z / Z–A, saring rombel
@@ -43,7 +47,9 @@ Status per 8 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 ### Anti-cheat ujian
 - [x] Layar pembuka + layar penuh; tombol kembali browser dikunci
 - [x] Pindah tab / aplikasi / keluar layar penuh tercatat di server; peringatan 1–2, kirim otomatis pada ke-3
+- [x] Perbaikan: satu kali keluar dari layar penuh dulu terhitung 2 kejadian (ujian berhenti di keluar ke-2). Kini catatan dalam 3 detik = 1 kejadian, di browser dan di server
 - [x] Salin, tempel (termasuk ke kotak esai), klik kanan, seret, cetak, F12 / Ctrl+Shift+I / Ctrl+U diblokir dan tercatat
+- [x] Tempel dari papan klip HP diblokir: tombol papan klip di keyboard (Gboard/SwiftKey/Samsung), menu tekan-lama, komposisi keyboard, seret-lepas. Teks > 20 huruf yang masuk sekaligus dibatalkan; papan klip dikosongkan saat kotak jawaban disentuh. Batas: riwayat papan klip keyboard tidak bisa dihapus web, dan dikte suara kalimat panjang ikut tertahan
 - [x] PrintScreen: isi langsung ditutup, papan klip dikosongkan, tercatat
 - [x] Watermark nama siswa + waktu di seluruh layar ujian
 - [x] Batas: screenshot bawaan HP, rekam layar sistem operasi, dan foto dari HP lain TIDAK bisa diblokir oleh web
@@ -104,5 +110,5 @@ Status per 8 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - [ ] Pindahkan script lepas (`seed_rombel.py`, `ganti_tahun_ajaran.py`, `app/add_*.py`) ke folder `scripts/`
 - [ ] Pecah `teacher.py` (±600 baris) per fitur
 - [x] three.js, Tailwind (build), dan font disimpan di `app/static`: web jalan tanpa internet
-- [x] 72 uji otomatis (`python -m pytest -q`): nilai, keamanan, akun, ekspor, esai, fitur kelas
+- [x] 87 uji otomatis (`python -m pytest -q`): nilai, keamanan, akun, ekspor, esai, fitur kelas
 - [ ] Hapus isi `_to_delete/` dan folder kosong `app/templates/components/`

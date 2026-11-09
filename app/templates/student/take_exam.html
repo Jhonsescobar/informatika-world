@@ -18,7 +18,7 @@
     <fieldset class="panel" data-soal="{{ item.question.id }}">
       <legend class="sr-only">Soal {{ loop.index }}</legend>
       <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}</p>
-      <p class="q-text">{{ item.question.text }}</p>
+      <div class="q-text">{{ item.question.text|soal }}</div>
       {% if item.question.question_type == 'esai' %}
       <label class="field">
         <span class="label">Jawabanmu · {{ item.question.points }} poin</span>
@@ -29,7 +29,7 @@
       {% for opt in item.options %}
       <label class="option">
         <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required data-q="{{ item.question.id }}"{% if item.terpilih == opt.id %} checked{% endif %}>
-        <span>{{ opt.text }}</span>
+        <span>{{ opt.text|soal }}</span>
       </label>
       {% endfor %}
       {% endif %}
@@ -53,7 +53,7 @@
   document.body.dataset.violationUrl = akar.dataset.violationUrl;
   document.body.classList.add('guarded');
 </script>
-<script src="/static/js/iw-guard.js"></script>
+<script src="{{ aset('js/iw-guard.js') }}"></script>
 <script>
   // Hitung mundur hanya tampilan; batas waktu sebenarnya diperiksa server
   const expires = new Date("{{ expires_at }}").getTime();

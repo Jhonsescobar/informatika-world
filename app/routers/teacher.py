@@ -20,6 +20,8 @@ from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_s
 from app.services.rekap import rekap_kelas, urutkan, persen_terbaik, tahun_aktif, KKM, BATAS_REMEDIAL
 from app.services.excel import buku_rekap, buku_ujian
 from app.services.esai import nilai_esai
+from app.services.impor_soal import periksa, gabung_kode, prompt_ai, CONTOH, PROMPT
+import json
 from datetime import datetime, timezone
 from sqlalchemy import func
 
@@ -44,6 +46,8 @@ router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates_env = Environment(loader=FileSystemLoader(BASE_DIR / "templates"))
+from app.services.teks import pasang as _pasang_filter
+_pasang_filter(templates_env)   # filter |soal: teks soal aman + blok kode
 
 @router.get("/materials", response_class=HTMLResponse)
 # Halaman daftar materi guru
@@ -116,28 +120,108 @@ async def create_bank(request: Request, db: Session = Depends(get_db), user=Depe
 @router.get("/question-banks/{bank_id}", response_class=HTMLResponse)
 # Melihat isi soal dalam sebuah bank soal
 async def view_bank(bank_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    
+    return halaman_bank(request, db, user, bank_id)
+
+
+def bank_terkunci(db, bank_id: int) -> bool:
+    """Bank yang ujiannya sudah pernah dikerjakan: soalnya tidak boleh dihapus (hasil lama bisa rusak)."""
+    return db.query(ExamSession.id).join(Exam, Exam.id == ExamSession.exam_id).filter(Exam.bank_id == bank_id).first() is not None
+
+
+def halaman_bank(request, db, user, bank_id: int, impor=None, teks_impor="", mode=None):
     bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
-    # Cari bank soal berdasarkan ID
-    questions = db.query(Question).filter(Question.bank_id == bank_id).all()
-    # Ambil semua soal di dalam bank ini
-    
+    if not bank:
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    questions = db.query(Question).filter(Question.bank_id == bank_id).order_by(Question.id).all()
+    # Question tidak punya relasi .options: opsi diambil sekali untuk semua soal (dulu q.options kosong diam-diam)
+    opsi_soal = {}
+    for o in (db.query(QuestionOption).filter(QuestionOption.question_id.in_([q.id for q in questions]))
+              .order_by(QuestionOption.id) if questions else []):
+        opsi_soal.setdefault(o.question_id, []).append(o)
+    p = request.query_params
     template = templates_env.get_template("teacher/bank_detail.html")
-    html_content = template.render(request=request, bank=bank, questions=questions, user=user)
+    html_content = template.render(
+        request=request, bank=bank, questions=questions, user=user, impor=impor, teks_impor=teks_impor,
+        opsi_soal=opsi_soal,
+        mode=mode or p.get("mode", "manual"), pesan=p.get("pesan"), n=p.get("n", "0"), lewat=p.get("lewat", "0"),
+        terkunci=bank_terkunci(db, bank_id), prompt=prompt_ai(bank.title, bank.class_target, 10, 2, "sedang"),
+        prompt_templat=PROMPT.replace("{contoh}", json.dumps(CONTOH, ensure_ascii=False, indent=2)),
+        contoh=json.dumps(CONTOH, ensure_ascii=False, indent=2))
     return HTMLResponse(content=html_content)
+
+
+def _kunci_teks(t: str) -> str:
+    return re.sub(r"\s+", " ", (t or "").strip().lower())
+
+
+@router.post("/question-banks/{bank_id}/import")
+# Impor soal dari JSON hasil AI: "periksa" menampilkan pratinjau, "simpan" menyimpan bila tanpa kesalahan
+async def import_questions(bank_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
+    if not bank:
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    form = await request.form()
+    teks = (form.get("teks") or "")[:400_000]
+    hasil = periksa(teks)
+    ada = {_kunci_teks(q.text) for q in db.query(Question.text).filter(Question.bank_id == bank_id)}
+    for item in hasil["soal"]:
+        item["kembar"] = _kunci_teks(gabung_kode(item["pertanyaan"], item["kode"])) in ada
+    if form.get("aksi") != "simpan" or hasil["galat"]:
+        return halaman_bank(request, db, user, bank_id, impor=hasil, teks_impor=teks, mode="impor")
+
+    disimpan = lewat = 0
+    for item in hasil["soal"]:
+        teks_soal = gabung_kode(item["pertanyaan"], item["kode"])
+        if _kunci_teks(teks_soal) in ada:      # soal yang sama sudah ada (misalnya tempel dua kali): dilewati
+            lewat += 1
+            continue
+        ada.add(_kunci_teks(teks_soal))
+        q = Question(bank_id=bank_id, text=teks_soal, points=item["poin"], question_type=item["tipe"])
+        if item["tipe"] == "esai":
+            q.answer_key, q.keywords = item["kunci"], item["kata_kunci"] or None
+        db.add(q)
+        db.flush()
+        if item["tipe"] == "pg":
+            for i, o in enumerate(item["opsi"]):
+                db.add(QuestionOption(question_id=q.id, text=o, is_correct=(i == item["benar"])))
+        disimpan += 1
+    db.commit()
+    return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=impor&n={disimpan}&lewat={lewat}", status_code=303)
+
+
+@router.post("/questions/{question_id}/delete")
+async def delete_question(question_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    q = db.query(Question).filter(Question.id == question_id).first()
+    if not q:
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    if bank_terkunci(db, q.bank_id):
+        return RedirectResponse(url=f"/teacher/question-banks/{q.bank_id}?pesan=terkunci", status_code=303)
+    bank_id = q.bank_id
+    db.query(QuestionOption).filter(QuestionOption.question_id == q.id).delete(synchronize_session=False)
+    db.delete(q)
+    db.commit()
+    return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=hapus", status_code=303)
 
 @router.post("/questions/create")
 # Menambahkan soal baru ke dalam bank
 async def create_question(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     form = await request.form()
-    bank_id = int(form.get("bank_id"))
     try:
-        poin = max(1, int(form.get("points") or 1))
+        bank_id = int(form.get("bank_id"))
+    except (TypeError, ValueError):
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    if not db.query(QuestionBank).filter(QuestionBank.id == bank_id).first():
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    try:
+        poin = min(100, max(1, int(form.get("points") or 1)))
     except ValueError:
         poin = 1
     jenis = "esai" if form.get("question_type") == "esai" else "pg"
+    teks_soal = gabung_kode((form.get("question_text") or "").strip()[:4000], (form.get("code") or "").strip("\n")[:4000])
+    if not teks_soal.strip():
+        return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=isian", status_code=303)
 
-    new_question = Question(bank_id=bank_id, text=form.get("question_text"), points=poin, question_type=jenis)
+    new_question = Question(bank_id=bank_id, text=teks_soal, points=poin, question_type=jenis)
     if jenis == "esai":
         new_question.answer_key = (form.get("answer_key") or "").strip()
         new_question.keywords = (form.get("keywords") or "").strip() or None

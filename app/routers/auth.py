@@ -32,6 +32,8 @@ router = APIRouter(tags=["Auth"])
 
 BASE_DIR = Path(__file__).resolve().parent.parent          # folder app/
 templates_env = Environment(loader=FileSystemLoader(BASE_DIR / "templates"))  # cari template di app/templates/
+from app.services.teks import pasang as _pasang_filter
+_pasang_filter(templates_env)   # aset() untuk penanda versi file statis
 
 # ============================================================
 # BAGIAN 1 - HALAMAN LOGIN BARU (3 halaman, semuanya GET)

@@ -34,6 +34,8 @@ except ImportError:
 router = APIRouter(prefix="/student", tags=["Student"])
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates_env = Environment(loader=FileSystemLoader(BASE_DIR / "templates"))
+from app.services.teks import pasang as _pasang_filter
+_pasang_filter(templates_env)   # filter |soal: teks soal aman + blok kode
 log = logging.getLogger("informatika")
 
 # --- PENGAMAN SESI UJIAN ---
@@ -376,6 +378,21 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
 # --- ANTI-CHEAT: catat pelanggaran selama ujian ---
 JENIS_PELANGGARAN = {"pindah_tab", "keluar_layar_penuh", "salin", "tempel", "klik_kanan", "screenshot", "cetak", "devtools"}
 
+JEDA_SATU_KEJADIAN = 3  # detik
+
+def hitung_keluar(waktu: list) -> int:
+    """Catatan keluar layar yang berdekatan (< 3 detik dari awal kejadian) dihitung SATU kali keluar.
+    Pindah aplikasi saat layar penuh mengirim 'keluar_layar_penuh' + 'pindah_tab' bersamaan."""
+    jumlah, awal = 0, None
+    for w in waktu:
+        if w is None:
+            continue
+        if awal is None or (w - awal).total_seconds() >= JEDA_SATU_KEJADIAN:
+            jumlah += 1
+            awal = w
+    return jumlah
+
+
 @router.post("/exam/violation/{session_id}")
 async def log_violation(session_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
     session = sesi_milik(db, session_id, int(user.get("sub")))
@@ -386,9 +403,10 @@ async def log_violation(session_id: int, request: Request, db: Session = Depends
     db.add(ExamViolation(session_id=session.id, kind=jenis))
     db.commit()
     # Hanya pindah tab / keluar layar penuh yang dihitung menuju kirim otomatis
-    hitung = db.query(func.count(ExamViolation.id)).filter(
-        ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"])).scalar()
-    return JSONResponse({"count": hitung, "limit": MAKS_PELANGGARAN, "active": True})
+    waktu = [w for (w,) in db.query(ExamViolation.created_at).filter(
+        ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"]))
+        .order_by(ExamViolation.created_at)]
+    return JSONResponse({"count": hitung_keluar(waktu), "limit": MAKS_PELANGGARAN, "active": True})
 
 # --- KISI-KISI MATERI ---
 def materi_terbuka(db: Session, tingkat):

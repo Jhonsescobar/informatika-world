@@ -607,6 +607,17 @@ a.row:hover { background: rgba(255, 255, 255, 0.02); }
 .timer.is-over { color: var(--danger); border-color: rgba(255, 114, 98, 0.4); background: var(--danger-soft); }
 .q-num { font-family: var(--font-body); font-size: 12px; color: var(--teal); letter-spacing: 0.1em; }
 .q-text { margin: 8px 0 18px; font-size: 17px; font-weight: 600; color: #fff; line-height: 1.5; }
+/* Teks soal: kode Python dari soal (```python ... ```) dan kode sebaris (`x`) */
+.q-text .teks-soal { display: block; }
+.kode-blok { margin: 12px 0 4px; padding: 14px 16px; border-radius: 12px; background: rgba(0, 0, 0, .38);
+  border: 1px solid var(--line); overflow-x: auto; max-width: 100%; tab-size: 4;
+  font: 500 14px/1.6 ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace; color: #d7f5ec; white-space: pre; }
+.kode-blok code { font: inherit; }
+.kode-sebaris { padding: 1px 6px; border-radius: 6px; background: rgba(0, 0, 0, .3); border: 1px solid var(--line);
+  font: 500 .92em ui-monospace, "Cascadia Mono", Consolas, monospace; color: #d7f5ec; }
+.q-isi .kode-blok { font-size: 13px; }
+.kode-isian { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; tab-size: 4; }
+.tab-mode[aria-selected="true"] { border-color: var(--teal); color: #fff; background: var(--teal-soft, rgba(45, 212, 191, .12)); }
 .option {
   display: flex;
   align-items: center;

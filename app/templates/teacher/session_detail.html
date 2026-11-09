@@ -30,7 +30,7 @@
           {% if b.dilihat > 1 %}<span class="chip">dilihat {{ b.dilihat }}×</span>{% endif %}
         </span>
       </div>
-      <p class="q-text">{{ b.q.text }}</p>
+      <div class="q-text">{{ b.q.text|soal }}</div>
 
       {% if b.q.question_type == 'esai' %}
         <div class="grid gap-4 lg:grid-cols-2">
@@ -64,9 +64,9 @@
       {% else %}
         <div class="flex flex-wrap gap-2 text-sm">
           {% if b.opsi %}
-          <span class="chip {{ 'chip-teal' if b.opsi.is_correct else 'chip-danger' }}" style="font-size:13px">Dijawab: {{ b.opsi.text|e }}</span>
+          <span class="chip {{ 'chip-teal' if b.opsi.is_correct else 'chip-danger' }}" style="font-size:13px">Dijawab: {{ b.opsi.text|soal }}</span>
           {% else %}<span class="chip chip-danger" style="font-size:13px">Tidak dijawab</span>{% endif %}
-          {% if b.benar and (not b.opsi or not b.opsi.is_correct) %}<span class="chip" style="font-size:13px">Kunci: {{ b.benar.text|e }}</span>{% endif %}
+          {% if b.benar and (not b.opsi or not b.opsi.is_correct) %}<span class="chip" style="font-size:13px">Kunci: {{ b.benar.text|soal }}</span>{% endif %}
         </div>
       {% endif %}
     </article>

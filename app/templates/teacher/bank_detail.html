@@ -1,22 +1,90 @@
 {% extends "layouts/teacher.html" %}
 {% from "layouts/icons.html" import icon %}
 {% set active = 'banks' %}
-{% block title %}{{ bank.title }} · Bank Soal{% endblock %}
+{% block title %}{{ bank.title|e }} · Bank Soal{% endblock %}
 {% block back %}<a href="/teacher/question-banks" class="back-link">{{ icon('arrow-left') }}Semua bank soal</a>{% endblock %}
 {% block eyebrow %}Bank soal · Kelas {{ bank.class_target }}{% endblock %}
-{% block heading %}{{ bank.title }}{% endblock %}
+{% block heading %}{{ bank.title|e }}{% endblock %}
 {% set n_esai = questions|selectattr('question_type', 'equalto', 'esai')|list|length %}
 {% block lead %}<p class="lead">{{ questions|length - n_esai }} pilihan ganda, {{ n_esai }} esai. Makin banyak soal di bank, makin beragam soal tiap siswa saat ujian dibatasi jumlahnya.</p>{% endblock %}
 {% block content %}
-<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px] items-start">
   <section class="stack" aria-label="Daftar soal">
+    {% if pesan == 'impor' %}
+    <div class="notice" role="status">{{ icon('check') }}<span>{{ n }} soal tersimpan dari impor.{% if lewat|int > 0 %} {{ lewat }} soal dilewati karena sudah ada di bank ini.{% endif %}</span></div>
+    {% elif pesan == 'hapus' %}
+    <div class="notice" role="status">{{ icon('check') }}<span>Soal dihapus.</span></div>
+    {% elif pesan == 'terkunci' %}
+    <div class="notice notice-amber" role="alert">{{ icon('lock') }}<span>Soal tidak bisa dihapus: ujian dari bank ini sudah pernah dikerjakan siswa, dan hasilnya bisa rusak. Buat bank baru untuk soal pengganti.</span></div>
+    {% elif pesan == 'isian' %}
+    <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Pertanyaan wajib diisi.</span></div>
+    {% endif %}
+
+    {% if impor %}
+    <article class="panel" id="pratinjau" aria-label="Pratinjau impor">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="h-section">Pratinjau impor</h2>
+        <span class="flex gap-2">
+          <span class="chip">{{ impor.soal|length }} soal terbaca</span>
+          {% if impor.galat %}<span class="chip chip-danger">{{ impor.galat|length }} perlu diperbaiki</span>{% else %}<span class="chip chip-teal">siap disimpan</span>{% endif %}
+        </span>
+      </div>
+      {% if impor.perbaikan %}
+      <p class="text-xs dim mt-3">Dirapikan otomatis: {{ impor.perbaikan|join(' · ') }}.</p>
+      {% endif %}
+      {% if impor.galat %}
+      <div class="notice notice-danger mt-4" role="alert">{{ icon('alert') }}
+        <div><strong>Belum disimpan. Perbaiki di kotak sebelah, lalu Periksa lagi:</strong>
+          <ul class="mt-2 grid gap-1 text-sm" style="list-style:disc;padding-left:18px">{% for g in impor.galat %}<li>{{ g|e }}</li>{% endfor %}</ul>
+        </div>
+      </div>
+      {% else %}
+      {% set baru = impor.soal|rejectattr('kembar')|list|length %}
+      <form action="/teacher/question-banks/{{ bank.id }}/import" method="POST" class="mt-4 flex flex-wrap items-center gap-3">
+        <input type="hidden" name="aksi" value="simpan">
+        <textarea name="teks" hidden>{{ teks_impor|e }}</textarea>
+        <button type="submit" class="btn btn-primary" {{ 'disabled' if baru == 0 }}>{{ icon('check') }}Simpan {{ baru }} soal ke bank ini</button>
+        {% if baru < impor.soal|length %}<span class="text-xs dim">{{ impor.soal|length - baru }} soal sudah ada di bank, akan dilewati.</span>{% endif %}
+      </form>
+      {% endif %}
+      <ol class="mt-5 grid gap-3">
+        {% for s in impor.soal %}
+        <li class="rounded-xl px-4 py-3" style="border:1px solid {{ 'rgba(255,114,98,.45)' if s.galat else 'var(--line)' }}">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="q-num">SOAL {{ s.nomor }}</span>
+            <span class="chip {{ 'chip-amber' if s.tipe == 'esai' }}">{{ 'Esai' if s.tipe == 'esai' else 'Pilihan ganda' }}</span>
+            <span class="chip">{{ s.poin }} poin</span>
+            {% if s.kode %}<span class="chip">{{ icon('code') }} kode</span>{% endif %}
+            {% if s.kembar %}<span class="chip chip-amber">sudah ada, dilewati</span>{% endif %}
+          </div>
+          {% if s.galat %}<p class="text-sm mt-2" style="color:var(--danger)">{{ s.galat|join('; ')|e }}</p>{% endif %}
+          <div class="q-isi mt-2 text-white">{{ s.pertanyaan|soal }}{% if s.kode %}<pre class="kode-blok" translate="no"><code>{{ s.kode|e }}</code></pre>{% endif %}</div>
+          {% if s.tipe == 'pg' and s.opsi %}
+          <ul class="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+            {% for o in s.opsi %}<li style="color:{{ 'var(--ok)' if loop.index0 == s.benar else 'var(--muted)' }}">{{ 'ABCDE'[loop.index0] }}. {{ o|soal }}{% if loop.index0 == s.benar %} ✓{% endif %}</li>{% endfor %}
+          </ul>
+          {% elif s.tipe == 'esai' %}
+          <p class="text-sm mt-2 dim">Kunci: <span class="text-white">{{ s.kunci|e }}</span>{% if s.kata_kunci %} · Kata kunci: <span style="color:var(--amber)">{{ s.kata_kunci|e }}</span>{% endif %}</p>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </article>
+    {% endif %}
+
     {% for q in questions %}
     <article class="panel">
       <div class="flex items-start justify-between gap-4">
         <p class="q-num">SOAL {{ loop.index }}</p>
-        <span class="flex gap-2">{% if q.question_type == 'esai' %}<span class="chip chip-amber">Esai</span>{% endif %}<span class="chip">{{ q.points }} poin</span></span>
+        <span class="flex items-center gap-2">{% if q.question_type == 'esai' %}<span class="chip chip-amber">Esai</span>{% endif %}<span class="chip">{{ q.points }} poin</span>
+          {% if not terkunci %}
+          <form action="/teacher/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Hapus soal {{ loop.index }}?');">
+            <button type="submit" class="link-action is-danger" aria-label="Hapus soal {{ loop.index }}">{{ icon('trash') }}</button>
+          </form>
+          {% endif %}
+        </span>
       </div>
-      <p class="q-text">{{ q.text }}</p>
+      <div class="q-text">{{ q.text|soal }}</div>
       {% if q.question_type == 'esai' %}
       <div class="grid gap-3 text-sm">
         <div><p class="label">Kunci jawaban</p><p class="mt-1 text-white" style="white-space:pre-wrap">{{ q.answer_key|e }}</p></div>
@@ -24,22 +92,28 @@
       </div>
       {% else %}
       <ul class="grid gap-2 sm:grid-cols-2">
-        {% for opt in q.options %}
+        {% for opt in opsi_soal.get(q.id, []) %}
         <li class="flex items-start gap-2 text-sm rounded-xl px-3 py-2" style="border:1px solid {{ 'rgba(94,230,160,.4)' if opt.is_correct else 'var(--line)' }};{{ 'background:rgba(94,230,160,.08);color:#fff' if opt.is_correct else 'color:var(--muted)' }}">
           <span class="mt-0.5 w-4 h-4 shrink-0" style="color:{{ 'var(--ok)' if opt.is_correct else 'var(--dim)' }}">{{ icon('check') if opt.is_correct else '' }}</span>
-          <span>{{ opt.text }}</span>
+          <span>{{ opt.text|soal }}</span>
         </li>
         {% endfor %}
       </ul>
       {% endif %}
     </article>
     {% else %}
-    <div class="empty"><strong>Belum ada soal</strong>Tambahkan soal lewat form di samping.</div>
+    <div class="empty"><strong>Belum ada soal</strong>Tambahkan soal satu per satu, atau tempel sekaligus dari AI lewat mode "Tempel dari AI".</div>
     {% endfor %}
   </section>
 
-  <section class="panel xl:sticky xl:top-8" aria-labelledby="judul-form">
-    <h2 class="h-section" id="judul-form">Tambah soal</h2>
+  <section class="panel" aria-labelledby="judul-form">
+    <div class="flex gap-2" role="tablist" aria-label="Cara menambah soal">
+      <button type="button" role="tab" class="chip tab-mode" data-mode="manual" aria-selected="{{ 'true' if mode != 'impor' else 'false' }}" style="cursor:pointer">Manual</button>
+      <button type="button" role="tab" class="chip tab-mode" data-mode="impor" aria-selected="{{ 'true' if mode == 'impor' else 'false' }}" style="cursor:pointer">Tempel dari AI</button>
+    </div>
+
+    <div id="mode-manual" {{ 'hidden' if mode == 'impor' }}>
+    <h2 class="h-section mt-5" id="judul-form">Tambah soal</h2>
     <form action="/teacher/questions/create" method="POST" class="mt-5 flex flex-col gap-4" id="form-soal">
       <input type="hidden" name="bank_id" value="{{ bank.id }}">
       <div class="flex gap-6" role="radiogroup" aria-label="Jenis soal">
@@ -47,7 +121,10 @@
         <label class="check"><input type="radio" name="question_type" value="esai">Esai</label>
       </div>
       <label class="field"><span class="label">Pertanyaan</span>
-        <textarea name="question_text" rows="3" required class="textarea"></textarea></label>
+        <textarea name="question_text" rows="3" required maxlength="4000" class="textarea"></textarea>
+        <span class="text-xs dim">Kode pendek di dalam kalimat: apit dengan tanda `, misalnya `print()`.</span></label>
+      <label class="field"><span class="label">Potongan kode Python (opsional)</span>
+        <textarea name="code" rows="4" maxlength="4000" class="textarea kode-isian" spellcheck="false" placeholder="for i in range(3):&#10;    print(i)"></textarea></label>
       <div class="grid gap-4 bagian-esai" hidden>
         <label class="field"><span class="label">Kunci jawaban</span>
           <textarea name="answer_key" rows="3" class="textarea" placeholder="perangkat yang dapat disentuh dan dilihat&#10;(boleh beberapa jawaban, satu per baris)"></textarea></label>
@@ -58,7 +135,7 @@
       <div class="grid gap-3 sm:grid-cols-2 bagian-pg">
         {% for huruf in ['A', 'B', 'C', 'D'] %}
         <label class="field"><span class="label">Opsi {{ huruf }}</span>
-          <input type="text" name="option_{{ huruf }}" required class="input"></label>
+          <input type="text" name="option_{{ huruf }}" required maxlength="500" class="input"></label>
         {% endfor %}
       </div>
       <div class="grid gap-3 grid-cols-2">
@@ -67,10 +144,42 @@
             <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
           </select></label>
         <label class="field"><span class="label">Poin</span>
-          <input type="number" name="points" value="1" min="1" class="input"></label>
+          <input type="number" name="points" value="1" min="1" max="100" class="input"></label>
       </div>
       <button type="submit" class="btn btn-primary mt-1">Simpan soal</button>
     </form>
+    </div>
+
+    <div id="mode-impor" {{ 'hidden' if mode != 'impor' }}>
+      <h2 class="h-section mt-5">1. Salin prompt ke AI</h2>
+      <div class="mt-4 grid gap-3 grid-cols-2">
+        <label class="field col-span-2"><span class="label">Topik</span>
+          <input type="text" id="p-topik" class="input" value="{{ bank.title|e }}" maxlength="150"></label>
+        <label class="field"><span class="label">Pilihan ganda</span>
+          <input type="number" id="p-pg" class="input" value="10" min="0" max="50"></label>
+        <label class="field"><span class="label">Esai</span>
+          <input type="number" id="p-esai" class="input" value="2" min="0" max="20"></label>
+        <label class="field col-span-2"><span class="label">Kesulitan</span>
+          <select id="p-sulit" class="select">
+            <option>mudah</option><option selected>sedang</option><option>sulit</option><option value="campuran (40% mudah, 40% sedang, 20% sulit)">campuran</option>
+          </select></label>
+      </div>
+      <textarea id="p-teks" rows="7" readonly class="textarea mt-3 kode-isian" aria-label="Prompt untuk AI" style="font-size:12px">{{ prompt|e }}</textarea>
+      <button type="button" id="p-salin" class="btn btn-ghost mt-3">{{ icon('copy') }}Salin prompt</button>
+      <p class="text-xs dim mt-2">Tempel ke ChatGPT, Gemini, atau Claude. Maksimal 100 soal sekali impor.</p>
+
+      <h2 class="h-section mt-7">2. Tempel jawaban AI</h2>
+      <form action="/teacher/question-banks/{{ bank.id }}/import" method="POST" class="mt-4 flex flex-col gap-3">
+        <input type="hidden" name="aksi" value="periksa">
+        <textarea name="teks" id="impor-teks" rows="12" required class="textarea kode-isian" spellcheck="false" style="font-size:12px"
+          placeholder='{"soal": [ ... ]}'>{{ teks_impor|e }}</textarea>
+        <div class="flex flex-wrap gap-3">
+          <button type="submit" class="btn btn-primary">{{ icon('search') }}Periksa</button>
+          <button type="button" id="isi-contoh" class="btn btn-ghost">Isi contoh format</button>
+        </div>
+        <p class="text-xs dim">Pagar ```json, teks pembuka dari AI, koma sisa, dan kutip melengkung dirapikan otomatis. Belum ada yang tersimpan sebelum Anda menekan Simpan di pratinjau.</p>
+      </form>
+    </div>
   </section>
 </div>
 {% endblock %}
@@ -87,5 +196,34 @@
   }
   form.querySelectorAll('input[name=question_type]').forEach(r => r.addEventListener('change', aturJenis));
   aturJenis();
+
+  // Dua mode: manual / tempel dari AI
+  document.querySelectorAll('.tab-mode').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab-mode').forEach(x => x.setAttribute('aria-selected', x === t ? 'true' : 'false'));
+    document.getElementById('mode-manual').hidden = t.dataset.mode !== 'manual';
+    document.getElementById('mode-impor').hidden = t.dataset.mode !== 'impor';
+  }));
+
+  // Prompt dibangun ulang saat isian diganti
+  const templat = {{ prompt_templat|tojson }};
+  const kelas = {{ bank.class_target|tojson }};
+  const isi = id => document.getElementById(id);
+  function bangunPrompt() {
+    const angka = (v, maks) => Math.max(0, Math.min(maks, parseInt(v, 10) || 0));
+    isi('p-teks').value = templat.replaceAll('{topik}', isi('p-topik').value.trim() || 'Informatika')
+      .replaceAll('{kelas}', kelas).replaceAll('{pg}', angka(isi('p-pg').value, 50))
+      .replaceAll('{esai}', angka(isi('p-esai').value, 20)).replaceAll('{kesulitan}', isi('p-sulit').value);
+  }
+  ['p-topik', 'p-pg', 'p-esai', 'p-sulit'].forEach(id => isi(id).addEventListener('input', bangunPrompt));
+  bangunPrompt();
+  isi('p-salin').addEventListener('click', async () => {
+    const tombol = isi('p-salin');
+    try { await navigator.clipboard.writeText(isi('p-teks').value); }
+    catch (e) { isi('p-teks').select(); document.execCommand('copy'); }
+    tombol.lastChild.textContent = 'Tersalin';
+    setTimeout(() => { tombol.lastChild.textContent = 'Salin prompt'; }, 1800);
+  });
+  isi('isi-contoh').addEventListener('click', () => { isi('impor-teks').value = {{ contoh|tojson }}; });
+  {% if impor %}document.getElementById('pratinjau').scrollIntoView({ block: 'start' });{% endif %}
 </script>
 {% endblock %}

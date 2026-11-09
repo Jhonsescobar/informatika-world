@@ -28,7 +28,7 @@
       {% for q in analytics.hardest_questions %}
       <article>
         <p class="q-num">#{{ loop.index }}</p>
-        <p class="mt-1 font-semibold text-white">{{ q.text }}</p>
+        <div class="mt-1 font-semibold text-white q-isi">{{ q.text|soal }}</div>
         <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <span style="color:var(--danger)">{{ q.wrong }} salah</span>
           <span style="color:var(--ok)">{{ q.correct }} benar</span>

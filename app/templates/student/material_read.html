@@ -18,5 +18,5 @@
 {% endblock %}
 {% block scripts %}
 <script>document.body.dataset.guard = 'read'; document.body.classList.add('guarded');</script>
-<script src="/static/js/iw-guard.js"></script>
+<script src="{{ aset('js/iw-guard.js') }}"></script>
 {% endblock %}

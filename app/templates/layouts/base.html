@@ -7,17 +7,17 @@
   <title>{% block title %}Informatika World{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/icons/mark.svg">
   {# Semua aset disimpan lokal: web tetap rapi walau internet putus (mode jaringan lokal). #}
-  <link rel="stylesheet" href="/static/css/fonts.css">
-  <link rel="stylesheet" href="/static/css/iw.css">
+  <link rel="stylesheet" href="{{ aset('css/fonts.css') }}">
+  <link rel="stylesheet" href="{{ aset('css/iw.css') }}">
   {% block head %}{% endblock %}
   {# tw.css paling akhir, sama seperti urutan Tailwind CDN dulu (utilitas menimpa gaya dasar) #}
-  <link rel="stylesheet" href="/static/css/tw.css">
+  <link rel="stylesheet" href="{{ aset('css/tw.css') }}">
 </head>
 <body>
   <canvas id="iw-scene" data-variant="{% block scene %}globe{% endblock %}" data-anchor="{% block anchor %}right{% endblock %}" aria-hidden="true"></canvas>
   {% block body %}{% endblock %}
   <script type="importmap">{"imports": {"three": "/static/vendor/three.module.min.js"}}</script>
-  <script type="module" src="/static/js/iw-scene.js"></script>
+  <script type="module" src="{{ aset('js/iw-scene.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

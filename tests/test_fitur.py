@@ -3,6 +3,8 @@
 
 import json
 
+from sqlalchemy import text
+
 from app.models.academic import Enrollment
 from app.models.exam import ExamEvent, ExamSession, ExamViolation, RemedialRequest
 from app.models.material import Material
@@ -82,12 +84,27 @@ def test_pelanggaran_dihitung_server(db, data, masuk_siswa):
     a = buat_ujian(db, data, "A")
     ani = masuk_siswa(data["siswa"]["Ani"])
     sesi = int(ani.post("/student/exam/start", data={"exam_id": str(a)}).headers["location"].rsplit("/", 1)[1])
-    hitung = [ani.post(f"/student/exam/violation/{sesi}", data={"kind": "pindah_tab"}).json()["count"] for _ in range(3)]
-    assert hitung == [1, 2, 3]
+    url = f"/student/exam/violation/{sesi}"
+
+    def mundurkan_semua(detik=10):
+        # kejadian sebelumnya dianggap terjadi beberapa detik lalu
+        db.execute(text("UPDATE exam_violations SET created_at = created_at - make_interval(secs => :d) "
+                        "WHERE session_id = :s"), {"d": detik, "s": sesi})
+        db.commit()
+
+    # satu kali keluar dari layar penuh = 2 catatan (keluar_layar_penuh + pindah_tab) -> dihitung 1
+    assert ani.post(url, data={"kind": "keluar_layar_penuh"}).json()["count"] == 1
+    assert ani.post(url, data={"kind": "pindah_tab"}).json()["count"] == 1
+    mundurkan_semua()
+    assert ani.post(url, data={"kind": "pindah_tab"}).json()["count"] == 2          # keluar ke-2: masih peringatan
+    assert ani.post(url, data={"kind": "keluar_layar_penuh"}).json()["count"] == 2
+    mundurkan_semua()
+    hasil = ani.post(url, data={"kind": "pindah_tab"}).json()
+    assert hasil["count"] == 3 and hasil["limit"] == 3                               # keluar ke-3: kirim otomatis
     masuk_siswa(data["siswa"]["Budi"]).post(f"/student/exam/violation/{sesi}", data={"kind": "pindah_tab"})
     ani.post(f"/student/exam/violation/{sesi}", data={"kind": "<script>alert(1)</script>"})
     jenis = [v.kind for v in db.query(ExamViolation).filter_by(session_id=sesi).order_by(ExamViolation.id)]
-    assert len(jenis) == 4 and jenis[-1] == "lainnya"
+    assert len(jenis) == 6 and jenis[-1] == "lainnya"   # 5 milik Ani + 1 jenis aneh; kiriman Budi ditolak
 
 
 def test_log_aktivitas_hanya_soal_milik_sesi(db, data, masuk_siswa):
@@ -115,3 +132,25 @@ def test_ujian_draf_dan_tingkat_lain_tidak_tampil(db, data, masuk_siswa):
     buat_ujian(db, data, "Ujian Terbit VII")
     html = masuk_siswa(data["siswa"]["Ani"]).get("/student/dashboard").text
     assert "Ujian Terbit VII" in html and "Ujian Draf VII" not in html and "Ujian Kelas VIII" not in html
+
+
+def test_hitung_keluar_menggabungkan_kejadian_berdekatan():
+    from datetime import datetime, timedelta
+    from app.routers.student import hitung_keluar
+    t = datetime(2026, 11, 9, 8, 0, 0)
+    d = lambda s: t + timedelta(seconds=s)
+    assert hitung_keluar([]) == 0
+    assert hitung_keluar([d(0), d(0.4), d(1)]) == 1          # blur + visibility + fullscreen
+    assert hitung_keluar([d(0), d(1), d(5), d(5.2), d(30)]) == 3
+    assert hitung_keluar([d(0), d(2), d(4), d(6)]) == 2      # rentetan panjang tidak digabung tanpa batas
+
+
+def test_file_statis_diberi_penanda_versi(client, db, data, masuk_siswa):
+    import re as _re
+    assert _re.search(r'/static/css/iw\.css\?v=\d{6,}', client.get("/login/siswa").text)
+    e = buat_ujian(db, data, "A")
+    ani = masuk_siswa(data["siswa"]["Ani"])
+    html = ani.get(ani.post("/student/exam/start", data={"exam_id": str(e)}).headers["location"]).text
+    versi = _re.search(r'/static/js/iw-guard\.js\?v=(\d+)', html)
+    assert versi and int(versi.group(1)) > 0
+    assert client.get(f"/static/js/iw-guard.js?v={versi.group(1)}").status_code == 200
