@@ -24,11 +24,14 @@ CONTOH = {
         {"tipe": "pg", "pertanyaan": "Urutan langkah yang logis untuk menyelesaikan masalah disebut ...",
          "opsi": ["Algoritma", "Variabel", "Perangkat keras", "Sistem operasi"], "jawaban": "A", "poin": 1},
         {"tipe": "pg", "pertanyaan": "Apa keluaran program berikut?",
-         "kode": "angka = 7\nif angka % 2 == 0:\n    print(\"genap\")\nelse:\n    print(\"ganjil\")",
-         "opsi": ["genap", "ganjil", "7", "Error"], "jawaban": "B", "poin": 2},
+         # kutip tunggal di dalam kode: sesuai aturan prompt (kutip ganda yang tidak di-escape merusak JSON)
+         "kode": "angka = 7\nif angka % 2 == 0:\n    print('genap')\nelse:\n    print('ganjil')",
+         "opsi": ["genap", "ganjil", "7", "Error"], "jawaban": "B", "poin": 1},
         {"tipe": "esai", "pertanyaan": "Jelaskan fungsi perulangan `for` dalam Python!",
-         "kunci": "Perulangan for digunakan untuk mengulang perintah sebanyak jumlah tertentu atau untuk setiap item dalam daftar",
-         "kata_kunci": "ulang/perulangan, jumlah/banyak/setiap", "poin": 5},
+         # dua versi jawaban benar, satu per baris: sistem memakai yang paling mirip dengan jawaban siswa
+         "kunci": "Perulangan for digunakan untuk mengulang perintah sebanyak jumlah tertentu\n"
+                  "For dipakai untuk menjalankan perintah berulang kali untuk setiap item dalam daftar",
+         "kata_kunci": "ulang/perulangan/berulang, jumlah/banyak/setiap/item", "poin": 5},
     ],
 }
 
@@ -290,19 +293,44 @@ def prompt_ai(topik: str, kelas: str, jumlah_pg: int, jumlah_esai: int, kesulita
     return PROMPT.format(topik=topik, kelas=kelas, pg=jumlah_pg, esai=jumlah_esai, kesulitan=kesulitan, contoh=contoh)
 
 
-PROMPT = """Buatkan soal untuk siswa SMP kelas {kelas}, topik "{topik}".
+PROMPT = """Kamu adalah guru SMP. Buatkan soal untuk siswa SMP kelas {kelas}, topik "{topik}".
 Jumlah: {pg} soal pilihan ganda dan {esai} soal esai. Tingkat kesulitan: {kesulitan}.
 
-Aturan:
-- Bahasa Indonesia yang baku, singkat, dan sesuai usia SMP.
-- Pilihan ganda: 4 opsi, tepat satu jawaban benar, opsi pengecoh masuk akal, jangan pakai "semua benar"/"semua salah".
-- Sebar letak jawaban benar (A, B, C, D) secara acak dan seimbang.
-- Bila soal memakai potongan kode Python, taruh kodenya di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi,
-  baris baru ditulis \\n, dan teks di dalam kode memakai kutip tunggal: print('Halo') (bukan print("Halo")).
-- Esai: isi "kunci" dengan jawaban lengkap satu kalimat, dan "kata_kunci" dengan kata atau frasa pendek yang WAJIB ada,
-  dipisah koma, sinonim dipisah garis miring (contoh: "cpu/central processing unit, ram, motherboard").
-  Jangan menulis kalimat sebagai kata kunci.
-- "poin": pilihan ganda 1, esai 5 (boleh diubah sesuai bobot).
+ATURAN UMUM
+1. Bahasa Indonesia baku, kalimat pendek dan jelas, sesuai usia SMP.
+2. Setiap soal berdiri sendiri. Soal akan diacak urutannya dan tiap siswa bisa mendapat sebagian soal saja,
+   jadi JANGAN merujuk soal lain ("soal nomor 3", "teks di atas") dan jangan membuat satu bacaan untuk beberapa soal.
+3. Tanpa gambar, tabel, atau diagram. Hanya teks. Kode pendek di dalam kalimat diapit backtick, contoh: `print()`.
+4. Jangan ada dua soal yang isinya sama atau hampir sama.
 
-Jawab HANYA dengan JSON valid, tanpa penjelasan, persis mengikuti bentuk contoh ini:
-{contoh}"""
+PILIHAN GANDA
+5. Tepat 4 opsi, tepat SATU jawaban benar.
+6. Opsi akan DIACAK untuk setiap siswa. Karena itu DILARANG: "semua benar", "semua salah", "A dan B benar",
+   "jawaban di atas", atau opsi yang menyebut huruf/posisi opsi lain. Jangan menulis huruf "A." di dalam teks opsi.
+7. Pengecoh harus masuk akal (kesalahan konsep yang umum), dan panjang keempat opsi mirip,
+   supaya jawaban benar tidak ketahuan dari bentuknya.
+8. Sebar kunci jawaban (A, B, C, D) secara seimbang.
+9. Bila memakai kode Python: taruh di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi, baris baru ditulis \\n,
+   teks di dalam kode memakai kutip tunggal: print('Halo'), BUKAN print("Halo").
+
+ESAI
+10. Pertanyaan meminta jawaban berupa KALIMAT (jelaskan / mengapa / bagaimana), bukan jawaban satu kata.
+    Jawaban ideal 1-2 kalimat.
+11. "kunci": jawaban benar yang lengkap. Bila ada beberapa cara benar menjawab, tulis tiap versi
+    sebagai baris terpisah (pisahkan dengan \\n).
+12. "kata_kunci": 2-4 kelompok, dipisah KOMA. Setiap kelompok WAJIB ada di jawaban siswa.
+    - Sinonim dalam satu kelompok dipisah garis miring: "sentuh/raba/tekan".
+    - Pakai kata yang PASTI ditulis anak SMP, bentuk kata dasar, sertakan sinonim dan istilah sehari-harinya
+      (contoh: "masukan/input", "keluaran/output").
+    - Frasa paling banyak 2-3 kata; semua katanya harus muncul. JANGAN menulis kalimat.
+    - Jangan memasukkan kata umum yang pasti muncul di jawaban apa pun (misalnya "komputer" pada soal tentang komputer).
+
+POIN
+13. "poin": pilihan ganda 1, esai 5. (Guru bisa mengubah poin semua soal sekaligus setelah impor.)
+
+FORMAT JAWABAN
+Jawab HANYA dengan JSON valid, tanpa penjelasan dan tanpa tanda ```, persis mengikuti bentuk contoh ini:
+{contoh}
+
+Sebelum menjawab, periksa ulang: setiap soal pilihan ganda punya tepat satu jawaban benar,
+tidak ada opsi yang merujuk huruf/posisi, dan setiap kata_kunci esai benar-benar muncul di kalimat "kunci"."""

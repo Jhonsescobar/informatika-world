@@ -96,3 +96,65 @@ def test_soal_pg_valid_tersimpan_dengan_poin_dan_satu_kunci(guru, db, data):
     assert q.text == "Soal baru" and q.points == 100          # dibatasi ke 100
     ops = db.query(QuestionOption).filter_by(question_id=q.id).order_by(QuestionOption.id).all()
     assert [o.text for o in ops] == ["satu", "dua", "tiga"] and [o.is_correct for o in ops] == [False, False, True]
+
+
+def _bank_campur(guru, db, data):
+    """Bank uji: 4 PG (25 poin) + tambahkan 2 esai."""
+    for i in range(2):
+        guru.post("/teacher/questions/create", data={"bank_id": str(data["bank"]), "question_type": "esai",
+                                                      "question_text": f"Esai {i}", "answer_key": "kunci", "points": "3"})
+    return db.query(Question).filter_by(bank_id=data["bank"])
+
+
+def test_poin_massal_hanya_pg(guru, db, data):
+    q = _bank_campur(guru, db, data)
+    r = guru.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "2", "sasaran": "pg"})
+    assert "pesan=poin_massal&n=4" in r.headers["location"]
+    db.expire_all()
+    assert sorted((s.question_type or "pg", s.points) for s in q) == [("esai", 3)] * 2 + [("pg", 2)] * 4
+    assert "Poin 4 soal diperbarui sekaligus" in guru.get(r.headers["location"]).text
+
+
+def test_poin_massal_hanya_esai_dan_semua(guru, db, data):
+    q = _bank_campur(guru, db, data)
+    guru.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "10", "sasaran": "esai"})
+    db.expire_all()
+    assert sorted((s.question_type or "pg", s.points) for s in q) == [("esai", 10)] * 2 + [("pg", 25)] * 4
+    guru.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "7", "sasaran": "semua"})
+    db.expire_all()
+    assert {s.points for s in q} == {7}
+    # bank lain tidak ikut berubah
+    assert db.get(Question, data["esai"]).points == 10
+
+
+def test_poin_massal_mengubah_nilai_ujian(guru, db, data, masuk_siswa):
+    _bank_campur(guru, db, data)
+    guru.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "10", "sasaran": "pg"})
+    guru.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "30", "sasaran": "esai"})
+    html = guru.get(f"/teacher/question-banks/{data['bank']}").text
+    assert "Total <strong class=\"text-white\">100 poin</strong> dari 6 soal" in html
+
+
+def test_poin_massal_ditolak_bila_salah_atau_terkunci(guru, db, data, masuk_siswa):
+    url = f"/teacher/question-banks/{data['bank']}/points"
+    for isian in ({"points": "0", "sasaran": "pg"}, {"points": "101", "sasaran": "pg"}, {"points": "x", "sasaran": "pg"},
+                  {"points": "5", "sasaran": "aneh"}, {"points": "5"}):
+        assert "pesan=poin_salah" in guru.post(url, data=isian).headers["location"], isian
+    e = buat_ujian(db, data, "Dipakai")
+    masuk_siswa(data["siswa"]["Ani"]).post("/student/exam/start", data={"exam_id": str(e)})
+    assert "pesan=poin_terkunci" in guru.post(url, data={"points": "5", "sasaran": "semua"}).headers["location"]
+    db.expire_all()
+    assert {s.points for s in db.query(Question).filter_by(bank_id=data["bank"])} == {25}
+    assert 'aria-label="Atur poin sekaligus"' not in guru.get(f"/teacher/question-banks/{data['bank']}").text
+
+
+def test_poin_massal_hanya_guru(db, data, masuk_siswa):
+    ani = masuk_siswa(data["siswa"]["Ani"])
+    ani.post(f"/teacher/question-banks/{data['bank']}/points", data={"points": "100", "sasaran": "semua"})
+    db.expire_all()
+    assert {s.points for s in db.query(Question).filter_by(bank_id=data["bank"])} == {25}
+
+
+def test_angka_pesan_di_alamat_tidak_bisa_disusupi_skrip(guru, data):
+    html = guru.get(f"/teacher/question-banks/{data['bank']}?pesan=impor&n=<script>alert(1)</script>&lewat=<b>x").text
+    assert "<script>alert(1)</script>" not in html and "0 soal tersimpan dari impor" in html

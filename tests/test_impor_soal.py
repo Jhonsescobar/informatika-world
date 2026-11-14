@@ -81,7 +81,7 @@ def test_periksa_tidak_menyimpan_lalu_simpan(guru, db, data):
     r = guru.post(url, data={"aksi": "simpan", "teks": BERSIH})
     assert "pesan=impor&n=3&lewat=0" in r.headers["location"]
     q = db.query(Question).filter(Question.text.like("Apa keluaran program%")).one()
-    assert "```python\nangka = 7" in q.text and q.points == 2
+    assert "```python\nangka = 7" in q.text and q.points == 1
     assert [o.is_correct for o in db.query(QuestionOption).filter_by(question_id=q.id).order_by(QuestionOption.id)] == [False, True, False, False]
     esai = db.query(Question).filter_by(question_type="esai", bank_id=data["bank"]).one()
     assert esai.keywords.startswith("ulang/perulangan")
@@ -184,3 +184,16 @@ def test_impor_dari_ai_dengan_kode_lalu_tampil_aman(guru, db, data, masuk_siswa)
     assert "n=12" in guru.post(url, data={"aksi": "simpan", "teks": teks}).headers["location"]
     q = db.query(Question).filter(Question.text.like("Perhatikan potongan kode Python%")).one()
     assert '```python\numur = 14\nif umur < 15:\n    print("Kategori Anak")' in q.text
+
+
+def test_prompt_memuat_aturan_sistem_dan_contoh_yang_bisa_diimpor():
+    from app.services.impor_soal import prompt_ai
+    t = prompt_ai("Jaringan", "VIII", 10, 2, "sedang")
+    for aturan in ("berdiri sendiri", "Opsi akan DIACAK", "A dan B benar", "kutip tunggal", "baris terpisah",
+                   "2-4 kelompok", "KALIMAT", "kelas VIII", '"Jaringan"', "10 soal pilihan ganda dan 2 soal esai"):
+        assert aturan in t, aturan
+    contoh = t[t.index('{\n  "topik"'):t.index("\n\nSebelum menjawab")]
+    h = periksa(contoh)
+    assert h["galat"] == [] and len(h["soal"]) == 3
+    assert "print(\"" not in h["soal"][1]["kode"]                  # contoh mengikuti aturan kutip tunggal
+    assert len(h["soal"][2]["kunci"].splitlines()) == 2           # contoh kunci esai lebih dari satu versi

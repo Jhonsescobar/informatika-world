@@ -24,6 +24,8 @@
     <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Soal esai wajib punya kunci jawaban supaya bisa dinilai. Soal belum disimpan.</span></div>
     {% elif pesan == 'poin' %}
     <div class="notice" role="status">{{ icon('check') }}<span>Poin soal diperbarui.</span></div>
+    {% elif pesan == 'poin_massal' %}
+    <div class="notice" role="status">{{ icon('check') }}<span>Poin {{ n }} soal diperbarui sekaligus.</span></div>
     {% elif pesan == 'poin_salah' %}
     <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Poin harus bilangan bulat 1 sampai 100.</span></div>
     {% elif pesan == 'poin_terkunci' %}
@@ -33,6 +35,21 @@
     {% if questions %}
     {% set total_poin = questions|sum(attribute='points') %}
     <div class="notice" role="note">{{ icon('info') }}<span>Total <strong class="text-white">{{ total_poin }} poin</strong> dari {{ questions|length }} soal. Nilai siswa = poin yang diraih ÷ total poin soal yang ia dapat × 100{% if total_poin %}, jadi 1 poin di bank ini ≈ {{ '%.1f'|format(100 / total_poin) }} nilai bila semua soal dikerjakan{% endif %}.{% if terkunci %} Poin terkunci karena bank sudah dipakai ujian.{% endif %}</span></div>
+    {% if not terkunci %}
+    <form action="/teacher/question-banks/{{ bank.id }}/points" method="POST" class="panel flex flex-wrap items-end gap-3" aria-label="Atur poin sekaligus">
+      <p class="label w-full" style="margin:0">Atur poin sekaligus</p>
+      <label class="field"><span class="text-xs dim">Poin</span>
+        <input type="number" name="points" min="1" max="100" required value="{{ 1 if n_esai == 0 else 5 }}" class="input" style="width:90px"></label>
+      <label class="field"><span class="text-xs dim">Untuk</span>
+        <select name="sasaran" class="select" style="width:auto">
+          <option value="pg">Semua pilihan ganda ({{ questions|length - n_esai }})</option>
+          <option value="esai" {{ 'disabled' if n_esai == 0 }}>Semua esai ({{ n_esai }})</option>
+          <option value="semua">Semua soal ({{ questions|length }})</option>
+        </select></label>
+      <button type="submit" class="btn btn-primary" onclick="return confirm('Ganti poin soal yang dipilih sekaligus?')">Terapkan</button>
+      <p class="text-xs dim w-full" style="margin:0">Poin per soal tetap bisa diubah satu per satu di kotak poin tiap soal.</p>
+    </form>
+    {% endif %}
     {% endif %}
 
     {% if impor %}

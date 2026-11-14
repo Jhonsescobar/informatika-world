@@ -170,6 +170,14 @@ def bank_terkunci(db, bank_id: int) -> bool:
     return db.query(ExamSession.id).join(Exam, Exam.id == ExamSession.exam_id).filter(Exam.bank_id == bank_id).first() is not None
 
 
+def _angka(teks) -> int:
+    # nilai dari alamat (?n=...) ditampilkan di halaman dengan autoescape mati: hanya angka yang boleh lewat
+    try:
+        return max(0, int(teks or 0))
+    except ValueError:
+        return 0
+
+
 def halaman_bank(request, db, user, bank_id: int, impor=None, teks_impor="", mode=None):
     bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
     if not bank:
@@ -185,7 +193,7 @@ def halaman_bank(request, db, user, bank_id: int, impor=None, teks_impor="", mod
     html_content = template.render(
         request=request, bank=bank, questions=questions, user=user, impor=impor, teks_impor=teks_impor,
         opsi_soal=opsi_soal,
-        mode=mode or p.get("mode", "manual"), pesan=p.get("pesan"), n=p.get("n", "0"), lewat=p.get("lewat", "0"),
+        mode=mode or p.get("mode", "manual"), pesan=p.get("pesan"), n=_angka(p.get("n")), lewat=_angka(p.get("lewat")),
         terkunci=bank_terkunci(db, bank_id), prompt=prompt_ai(bank.title, bank.class_target, 10, 2, "sedang"),
         prompt_templat=PROMPT.replace("{contoh}", json.dumps(CONTOH, ensure_ascii=False, indent=2)),
         contoh=json.dumps(CONTOH, ensure_ascii=False, indent=2))
@@ -243,6 +251,32 @@ async def delete_question(question_id: int, db: Session = Depends(get_db), user=
     db.delete(q)
     db.commit()
     return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=hapus", status_code=303)
+
+@router.post("/question-banks/{bank_id}/points")
+async def poin_massal(bank_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    """Memberi poin yang sama untuk banyak soal sekaligus: semua soal, semua PG, atau semua esai di bank ini."""
+    form = await request.form()
+    if not db.query(QuestionBank).filter(QuestionBank.id == bank_id).first():
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    if bank_terkunci(db, bank_id):
+        return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=poin_terkunci", status_code=303)
+    try:
+        poin = int(form.get("points") or "")
+    except ValueError:
+        poin = 0
+    sasaran = form.get("sasaran")
+    if not 1 <= poin <= 100 or sasaran not in ("semua", "pg", "esai"):
+        return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=poin_salah", status_code=303)
+    q = db.query(Question).filter(Question.bank_id == bank_id)
+    if sasaran == "esai":
+        q = q.filter(Question.question_type == "esai")
+    elif sasaran == "pg":
+        # soal lama bisa tanpa tipe (NULL): dianggap pilihan ganda, sama seperti di halaman ujian
+        q = q.filter((Question.question_type != "esai") | (Question.question_type.is_(None)))
+    n = q.update({Question.points: poin}, synchronize_session=False)
+    db.commit()
+    return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=poin_massal&n={n}", status_code=303)
+
 
 @router.post("/questions/{question_id}/points")
 async def ubah_poin(question_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
