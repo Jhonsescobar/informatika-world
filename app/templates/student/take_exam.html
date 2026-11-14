@@ -15,9 +15,14 @@
   </div>
   <form id="form-ujian" action="/student/exam/submit/{{ session.id }}" method="POST" class="above-scene mx-auto w-full max-w-2xl px-4 py-8 flex flex-col gap-5">
     {% for item in exam_data %}
-    <fieldset class="panel" data-soal="{{ item.question.id }}">
+    {% set pg = item.question.question_type != 'esai' %}
+    <fieldset class="panel{{ ' is-terkunci' if pg and item.terkunci }}" data-soal="{{ item.question.id }}"
+              {% if pg and item.terkunci %}data-terkunci="1"{% elif pg and item.sisa_kunci is not none %}data-kunci-sisa="{{ item.sisa_kunci }}"{% endif %}>
       <legend class="sr-only">Soal {{ loop.index }}</legend>
-      <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}</p>
+      <div class="flex items-center justify-between gap-3">
+        <p class="q-num">SOAL {{ loop.index }} / {{ exam_data|length }}{% if pg %} · {{ item.question.points }} poin{% endif %}</p>
+        {% if pg %}<span class="kunci-status" aria-live="polite">{{ 'Terkunci' if item.terkunci }}</span>{% endif %}
+      </div>
       <div class="q-text">{{ item.question.text|soal }}</div>
       {% if item.question.question_type == 'esai' %}
       <label class="field">
@@ -28,7 +33,7 @@
       {% else %}
       {% for opt in item.options %}
       <label class="option">
-        <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required data-q="{{ item.question.id }}"{% if item.terpilih == opt.id %} checked{% endif %}>
+        <input type="radio" name="question_{{ item.question.id }}" value="{{ opt.id }}" required data-q="{{ item.question.id }}"{% if item.terpilih == opt.id %} checked{% elif item.terkunci %} disabled{% endif %}>
         <span>{{ opt.text|soal }}</span>
       </label>
       {% endfor %}
@@ -41,7 +46,7 @@
   </form>
   {{ watermark(student_name, sekarang) }}
   {{ shield('Siap mengerjakan?',
-            'Ujian dibuka layar penuh. Jangan pindah tab, membuka aplikasi lain, atau keluar dari layar penuh: setiap kejadian tercatat untuk guru, dan pada kejadian ke-' ~ maks_pelanggaran ~ ' jawaban dikirim otomatis. Waktu sudah berjalan.',
+            'Jawaban pilihan ganda TERKUNCI 1 menit setelah kamu memilihnya, jadi pilih hanya bila sudah yakin. Ujian dibuka layar penuh: jangan pindah tab, membuka aplikasi lain, atau keluar dari layar penuh. Setiap kejadian tercatat untuk guru, dan pada kejadian ke-' ~ maks_pelanggaran ~ ' jawaban dikirim otomatis. Waktu sudah berjalan.',
             'Mulai ujian', terbuka=True) }}
 </div>
 {% endblock %}
@@ -95,13 +100,46 @@
   function kirimLog(keepalive) {
     if (!antrean.length) return;
     const isi = JSON.stringify(antrean.splice(0, 100));
-    fetch(urlLog, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: isi, keepalive: !!keepalive, credentials: 'same-origin' }).catch(() => {});
+    fetch(urlLog, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: isi, keepalive: !!keepalive, credentials: 'same-origin' })
+      .then(r => r.json()).then(h => {
+        // server menyatakan soal ini sudah terkunci (misalnya jam HP tidak tepat): kunci juga di layar
+        (h.terkunci || []).forEach(q => { const fs = document.querySelector(`fieldset[data-soal="${q}"]`); if (fs) kunci(fs); });
+      }).catch(() => {});
   }
   setInterval(kirimLog, 4000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) kirimLog(true); });
 
+  // ---- Kunci jawaban PG: 1 menit setelah pertama dipilih (server juga menegakkannya) ----
+  const KUNCI_MS = {{ kunci_detik }} * 1000;
+  const statusKunci = fs => fs.querySelector('.kunci-status');
+  function kunci(fs) {
+    fs.dataset.terkunci = '1';
+    delete fs.dataset.batas;
+    fs.classList.add('is-terkunci');
+    fs.querySelectorAll('input[type=radio]').forEach(r => { if (!r.checked) r.disabled = true; });
+    statusKunci(fs).textContent = 'Terkunci';
+  }
+  function hitungMundur() {
+    document.querySelectorAll('fieldset[data-batas]').forEach(fs => {
+      const s = Math.ceil((+fs.dataset.batas - Date.now()) / 1000);
+      if (s <= 0) kunci(fs);
+      else statusKunci(fs).textContent = 'Terkunci dalam 0:' + pad(s);
+    });
+  }
+  document.querySelectorAll('fieldset[data-kunci-sisa]').forEach(fs => { fs.dataset.batas = Date.now() + (+fs.dataset.kunciSisa) * 1000; });
+  document.querySelectorAll('fieldset[data-terkunci]').forEach(kunci);
+  setInterval(hitungMundur, 250);
+  hitungMundur();
+
   document.querySelectorAll('input[type=radio][data-q]').forEach(r => {
-    r.addEventListener('change', () => catatAktivitas('pilih', +r.dataset.q, +r.value));
+    r.addEventListener('change', () => {
+      const fs = r.closest('fieldset');
+      if (fs.dataset.terkunci) return;
+      if (!fs.dataset.batas) fs.dataset.batas = Date.now() + KUNCI_MS;
+      catatAktivitas('pilih', +r.dataset.q, +r.value);
+      kirimLog();                       // langsung dikirim: waktu kunci dihitung server sejak pilihan pertama
+      hitungMundur();
+    });
   });
   document.querySelectorAll('textarea[data-q]').forEach(t => {
     let jeda;

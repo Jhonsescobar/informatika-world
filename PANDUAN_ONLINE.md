@@ -57,3 +57,10 @@ Tidak ada web yang bisa mencegah kamera HP kedua. Yang sudah dipasang dan yang p
 ## Uji otomatis (untuk pengembang)
 
 Jalankan `python -m pytest -q` (72 uji, ±15 detik). Database uji `<nama database>_test` dibuat otomatis di PostgreSQL yang sama; database asli tidak disentuh, dan uji menolak berjalan bila diarahkan ke database asli.
+
+## QR untuk siswa
+
+Setelah alamat siap, ONLINE.bat membuka halaman **QR Siswa** di browser (atau buka menu QR Siswa di halaman guru).
+Tayangkan di proyektor dan tekan **Layar penuh**. Siswa memindai dengan kamera HP dan langsung sampai di halaman masuk.
+Bila tunnel putus lalu menyala dengan alamat baru, QR ikut berganti sendiri dalam beberapa detik.
+Mode lokal: HP siswa tetap harus tersambung ke WiFi/hotspot yang sama dengan laptop.

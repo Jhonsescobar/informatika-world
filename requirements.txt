@@ -34,6 +34,9 @@ jinja2
 # OpenPyXL: membuat file Excel (ekspor nilai & cadangan rekap)
 openpyxl
 
+# Segno: membuat kode QR alamat web untuk siswa (halaman QR guru)
+segno
+
 # Pytest + httpx: menjalankan uji otomatis (python -m pytest -q)
 pytest
 httpx

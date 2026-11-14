@@ -17,6 +17,9 @@ $folderLog = Join-Path $PSScriptRoot "logs"
 $logTunnel = Join-Path $folderLog "cloudflared.log"
 $PORT = 8000
 $MAKS_RESTART = 5
+$fileAlamat = Join-Path $folderLog "alamat.json"   # dibaca web untuk halaman QR guru
+$alamatSekarang = $null
+$alamatLain = @()
 
 function Tulis($teks, $warna = "Gray") { Write-Host $teks -ForegroundColor $warna }
 function Berhenti($pesan) { Tulis $pesan Red; Read-Host "Enter untuk keluar"; exit 1 }
@@ -44,6 +47,7 @@ try {
     }
 } catch {}
 Get-Process -Name cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $cloudflared } | Stop-Process -Force -ErrorAction SilentlyContinue
+Hapus-Alamat   # alamat sesi lalu (tunnel lama) jangan sampai tampil di QR
 
 # ---------- cadangan sebelum mulai ----------
 Tulis ""
@@ -97,6 +101,22 @@ function Tampilkan-Alamat($alamat, $catatan) {
     foreach ($c in $catatan) { Tulis "  $c" }
 }
 
+# Alamat untuk halaman QR guru. Ditulis ulang setiap alamat berganti DAN setiap web dinyalakan ulang
+# (web menganggap file yang lebih tua dari dirinya sebagai sisa sesi lama).
+function Simpan-Alamat {
+    if (-not $script:alamatSekarang) { return }
+    $isi = @{ url = $script:alamatSekarang; lain = @($script:alamatLain); waktu = (Get-Date -Format s) } | ConvertTo-Json -Compress
+    try {
+        [IO.File]::WriteAllText("$fileAlamat.tmp", $isi)
+        Move-Item -Force -Path "$fileAlamat.tmp" -Destination $fileAlamat
+    } catch { Tulis "  (alamat untuk halaman QR gagal disimpan: $($_.Exception.Message))" DarkGray }
+}
+function Hapus-Alamat { Remove-Item -Path $fileAlamat, "$fileAlamat.tmp" -Force -ErrorAction SilentlyContinue }
+function Buka-QR {
+    Tulis "  Halaman QR untuk proyektor dibuka di browser: http://127.0.0.1:$PORT/teacher/qr" DarkGray
+    try { Start-Process "http://127.0.0.1:$PORT/teacher/qr" } catch {}
+}
+
 function Alamat-Lokal {
     try {
         Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
@@ -115,13 +135,21 @@ if ($mode -eq "1") {
     Tulis "[3/3] Membuka tunnel Cloudflare ..." Cyan
     $tunnel = Nyalakan-Tunnel
     if (-not $tunnel) { Tulis "Tunnel gagal dibuat. Cek internet. Web tetap menyala; bisa pakai mode lokal (jalankan ulang, pilih 2)." Red }
-    else { Tampilkan-Alamat "$($tunnel.Url)/login" @("Alamat berganti setiap kali ONLINE.bat dijalankan ulang.") }
+    else {
+        $alamatSekarang = "$($tunnel.Url)/login"; Simpan-Alamat
+        Tampilkan-Alamat $alamatSekarang @("Alamat berganti setiap kali ONLINE.bat dijalankan ulang.", "Atau tayangkan QR: menu QR Siswa di halaman guru.")
+        Buka-QR
+    }
 } else {
     Tulis "[3/3] Mode jaringan lokal" Cyan
     $ip = @(Alamat-Lokal)
     if ($ip.Count -eq 0) { Tulis "Laptop belum terhubung ke WiFi/hotspot mana pun." Red }
     else {
-        Tampilkan-Alamat "http://$($ip[0]):$PORT/login" (@(
+        $alamatSekarang = "http://$($ip[0]):$PORT/login"
+        $alamatLain = @($ip | Select-Object -Skip 1 | ForEach-Object { "http://$($_):$PORT/login" })
+        Simpan-Alamat
+        Buka-QR
+        Tampilkan-Alamat $alamatSekarang (@(
             "Siswa harus terhubung ke WiFi/hotspot yang sama dengan laptop ini.",
             "Jika Windows menanyakan izin firewall untuk Python, centang 'Private networks' lalu Allow."
         ) + ($ip | Select-Object -Skip 1 | ForEach-Object { "Alamat lain bila yang di atas tidak bisa: http://$($_):$PORT/login" }))
@@ -144,20 +172,25 @@ try {
             $restartWeb++
             Tulis "$(Get-Date -Format HH:mm:ss)  Web berhenti, menyalakan ulang ($restartWeb/$MAKS_RESTART) ..." Yellow
             $baru = Nyalakan-Web
-            if ($baru) { $web = $baru; Tulis "  Web menyala lagi. Siswa cukup memuat ulang halaman; jawaban tersimpan." Green }
+            if ($baru) { $web = $baru; Simpan-Alamat; Tulis "  Web menyala lagi. Siswa cukup memuat ulang halaman; jawaban tersimpan." Green }
         }
         if ($tunnel -and $tunnel.Proses.HasExited) {
-            if ($restartTunnel -ge $MAKS_RESTART) { Tulis "Tunnel putus berulang kali. Cek internet, atau pakai mode lokal." Red; $tunnel = $null }
+            if ($restartTunnel -ge $MAKS_RESTART) { Tulis "Tunnel putus berulang kali. Cek internet, atau pakai mode lokal." Red; $tunnel = $null; $alamatSekarang = $null; Hapus-Alamat }
             else {
                 $restartTunnel++
                 Tulis "$(Get-Date -Format HH:mm:ss)  Tunnel putus, membuka ulang ($restartTunnel/$MAKS_RESTART) ..." Yellow
+                Hapus-Alamat   # QR lama menunjuk tunnel yang sudah mati
                 $baru = Nyalakan-Tunnel
-                if ($baru) { $tunnel = $baru; Tampilkan-Alamat "$($tunnel.Url)/login" @("ALAMAT BARU. Bagikan ulang ke siswa; jawaban mereka tetap tersimpan.") }
+                if ($baru) {
+                    $tunnel = $baru; $alamatSekarang = "$($tunnel.Url)/login"; Simpan-Alamat
+                    Tampilkan-Alamat $alamatSekarang @("ALAMAT BARU. Bagikan ulang ke siswa; jawaban mereka tetap tersimpan.", "QR di halaman guru ikut berganti sendiri.")
+                }
             }
         }
         Start-Sleep -Milliseconds 500
     }
 } finally {
+    Hapus-Alamat
     if ($tunnel) { Stop-Process -Id $tunnel.Proses.Id -ErrorAction SilentlyContinue }
     if ($web) { Stop-Process -Id $web.Id -ErrorAction SilentlyContinue }
     if ($jagaBangun) { [IW.Daya]::SetThreadExecutionState([uint32]2147483648) | Out-Null }

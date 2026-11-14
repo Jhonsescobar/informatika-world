@@ -23,8 +23,12 @@
             {% if exam.component_id and nama_komponen.get(exam.component_id) %}<span class="chip chip-teal">{{ nama_komponen[exam.component_id].name|e }} · {{ nama_komponen[exam.component_id].weight }}%</span>{% else %}<span class="chip chip-amber" title="Ujian ini tidak masuk nilai akhir berbobot">tanpa komponen</span>{% endif %}
             <span>{{ exam.duration_minutes }} menit</span>
             {% if exam.question_count %}<span class="chip chip-teal">{{ exam.question_count }} soal acak / siswa</span>{% endif %}
-            <span>Soal {{ 'diacak' if exam.randomize_questions else 'berurutan' }}</span>
-            <span>Opsi {{ 'diacak' if exam.randomize_options else 'tetap' }}</span>
+            {% for jenis, aktif, ya, tidak in [('soal', exam.randomize_questions, 'Soal diacak', 'Soal berurutan'), ('opsi', exam.randomize_options, 'Opsi diacak', 'Opsi tetap')] %}
+            <form action="/teacher/exams/{{ exam.id }}/acak" method="POST" style="display:inline">
+              <input type="hidden" name="jenis" value="{{ jenis }}">
+              <button type="submit" class="chip {{ 'chip-teal' if aktif else 'chip-amber' }}" style="border:0;cursor:pointer" title="Klik untuk {{ 'mematikan' if aktif else 'menyalakan' }} pengacakan">{{ ya if aktif else tidak }} ⇄</button>
+            </form>
+            {% endfor %}
           </p>
         </div>
         <div class="row-actions">
@@ -57,7 +61,8 @@
     <div class="notice notice-amber mt-5">{{ icon('info') }}<span>Belum ada bank soal. <a href="/teacher/question-banks" class="underline">Buat bank soal</a> dulu.</span></div>
     {% endif %}
     {% if error == 'komponen' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Komponen nilai harus untuk kelas yang sama dengan ujian.</span></div>
-    {% elif error == 'isian' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Isian belum benar: judul wajib, durasi 1–300 menit, bank soal harus ada.</span></div>{% endif %}
+    {% elif error == 'isian' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Isian belum benar: judul wajib, durasi 1–300 menit, bank soal harus ada.</span></div>
+    {% elif error == 'opsi_aktif' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Masih ada siswa yang sedang mengerjakan ujian itu. Urutan opsi baru bisa diubah setelah mereka selesai, supaya huruf A–D di layar mereka tidak berpindah.</span></div>{% endif %}
     <form action="/teacher/exams/create" method="POST" class="mt-5 flex flex-col gap-5">
       <div class="grid gap-4 md:grid-cols-2">
         <label class="field"><span class="label">Judul ujian</span>
@@ -85,8 +90,8 @@
           <span class="text-xs dim">Contoh: bank berisi 40 soal, isi 20. Tiap siswa mendapat 20 soal acak yang berbeda dari temannya.</span></label>
       </div>
       <div class="flex flex-wrap gap-6">
-        <label class="check"><input type="checkbox" name="randomize_questions">Acak urutan soal</label>
-        <label class="check"><input type="checkbox" name="randomize_options">Acak urutan opsi A–D</label>
+        <label class="check"><input type="checkbox" name="randomize_questions" checked>Acak urutan soal (beda tiap siswa)</label>
+        <label class="check"><input type="checkbox" name="randomize_options" checked>Acak urutan opsi A–D (beda tiap siswa)</label>
       </div>
       <div><button type="submit" class="btn btn-primary">Buat ujian</button></div>
     </form>

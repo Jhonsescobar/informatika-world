@@ -18,6 +18,21 @@
     <div class="notice notice-amber" role="alert">{{ icon('lock') }}<span>Soal tidak bisa dihapus: ujian dari bank ini sudah pernah dikerjakan siswa, dan hasilnya bisa rusak. Buat bank baru untuk soal pengganti.</span></div>
     {% elif pesan == 'isian' %}
     <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Pertanyaan wajib diisi.</span></div>
+    {% elif pesan == 'isian_pg' %}
+    <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Soal pilihan ganda butuh minimal 2 opsi, dan kuncinya harus opsi yang terisi. Soal belum disimpan.</span></div>
+    {% elif pesan == 'isian_esai' %}
+    <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Soal esai wajib punya kunci jawaban supaya bisa dinilai. Soal belum disimpan.</span></div>
+    {% elif pesan == 'poin' %}
+    <div class="notice" role="status">{{ icon('check') }}<span>Poin soal diperbarui.</span></div>
+    {% elif pesan == 'poin_salah' %}
+    <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Poin harus bilangan bulat 1 sampai 100.</span></div>
+    {% elif pesan == 'poin_terkunci' %}
+    <div class="notice notice-amber" role="alert">{{ icon('lock') }}<span>Poin tidak bisa diubah: ujian dari bank ini sudah pernah dikerjakan, dan nilai siswa dihitung dari poin tersebut. Buat bank baru bila ingin bobot berbeda.</span></div>
+    {% endif %}
+
+    {% if questions %}
+    {% set total_poin = questions|sum(attribute='points') %}
+    <div class="notice" role="note">{{ icon('info') }}<span>Total <strong class="text-white">{{ total_poin }} poin</strong> dari {{ questions|length }} soal. Nilai siswa = poin yang diraih ÷ total poin soal yang ia dapat × 100{% if total_poin %}, jadi 1 poin di bank ini ≈ {{ '%.1f'|format(100 / total_poin) }} nilai bila semua soal dikerjakan{% endif %}.{% if terkunci %} Poin terkunci karena bank sudah dipakai ujian.{% endif %}</span></div>
     {% endif %}
 
     {% if impor %}
@@ -74,10 +89,15 @@
     {% endif %}
 
     {% for q in questions %}
-    <article class="panel">
+    <article class="panel" id="soal-{{ q.id }}">
       <div class="flex items-start justify-between gap-4">
         <p class="q-num">SOAL {{ loop.index }}</p>
-        <span class="flex items-center gap-2">{% if q.question_type == 'esai' %}<span class="chip chip-amber">Esai</span>{% endif %}<span class="chip">{{ q.points }} poin</span>
+        <span class="flex items-center gap-2">{% if q.question_type == 'esai' %}<span class="chip chip-amber">Esai</span>{% endif %}
+          {% if terkunci %}<span class="chip">{{ q.points }} poin</span>{% else %}
+          <form action="/teacher/questions/{{ q.id }}/points" method="POST" class="flex items-center gap-1 form-poin">
+            <input type="number" name="points" value="{{ q.points }}" min="1" max="100" required class="input" style="width:72px;min-height:32px;padding:4px 8px;font-size:13px" aria-label="Poin soal {{ loop.index }}">
+            <button type="submit" class="link-action" style="font-size:12px">poin · simpan</button>
+          </form>{% endif %}
           {% if not terkunci %}
           <form action="/teacher/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Hapus soal {{ loop.index }}?');">
             <button type="submit" class="link-action is-danger" aria-label="Hapus soal {{ loop.index }}">{{ icon('trash') }}</button>

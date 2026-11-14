@@ -23,6 +23,7 @@ from app.services.excel import buku_rekap, buku_ujian
 from app.services.esai import nilai_esai
 from app.services.materi import status_materi, baca_waktu, sekarang as materi_sekarang
 from app.services.impor_soal import periksa, gabung_kode, prompt_ai, CONTOH, PROMPT
+from app.services.alamat import alamat_siswa, svg_qr
 import json
 from datetime import datetime, timezone
 from sqlalchemy import func
@@ -243,6 +244,25 @@ async def delete_question(question_id: int, db: Session = Depends(get_db), user=
     db.commit()
     return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=hapus", status_code=303)
 
+@router.post("/questions/{question_id}/points")
+async def ubah_poin(question_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    q = db.query(Question).filter(Question.id == question_id).first()
+    if not q:
+        return RedirectResponse(url="/teacher/question-banks", status_code=303)
+    # bank yang sudah dipakai ujian: poin dikunci, karena nilai siswa yang sudah ada dihitung dari poin ini
+    if bank_terkunci(db, q.bank_id):
+        return RedirectResponse(url=f"/teacher/question-banks/{q.bank_id}?pesan=poin_terkunci", status_code=303)
+    try:
+        poin = int(form.get("points") or "")
+    except ValueError:
+        poin = 0
+    if not 1 <= poin <= 100:
+        return RedirectResponse(url=f"/teacher/question-banks/{q.bank_id}?pesan=poin_salah", status_code=303)
+    q.points = poin
+    db.commit()
+    return RedirectResponse(url=f"/teacher/question-banks/{q.bank_id}?pesan=poin#soal-{q.id}", status_code=303)
+
 @router.post("/questions/create")
 # Menambahkan soal baru ke dalam bank
 async def create_question(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
@@ -262,6 +282,16 @@ async def create_question(request: Request, db: Session = Depends(get_db), user=
     if not teks_soal.strip():
         return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=isian", status_code=303)
 
+    # Validasi di server juga (isian HTML bisa diakali): soal PG wajib punya minimal 2 opsi dan kuncinya
+    # harus opsi yang terisi, kalau tidak poinnya tidak akan pernah bisa diraih siswa. Esai wajib punya kunci.
+    opsi_isi = {h: (form.get(f"option_{h}") or "").strip()[:500] for h in "ABCD"}
+    opsi_isi = {h: t for h, t in opsi_isi.items() if t}
+    kunci_pg = form.get("correct_key")
+    if jenis == "pg" and (len(opsi_isi) < 2 or kunci_pg not in opsi_isi):
+        return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=isian_pg", status_code=303)
+    if jenis == "esai" and not (form.get("answer_key") or "").strip():
+        return RedirectResponse(url=f"/teacher/question-banks/{bank_id}?pesan=isian_esai", status_code=303)
+
     new_question = Question(bank_id=bank_id, text=teks_soal, points=poin, question_type=jenis)
     if jenis == "esai":
         new_question.answer_key = (form.get("answer_key") or "").strip()
@@ -271,11 +301,8 @@ async def create_question(request: Request, db: Session = Depends(get_db), user=
     db.refresh(new_question)
 
     if jenis == "pg":
-        correct_key = form.get("correct_key")
-        for key in ["A", "B", "C", "D"]:
-            option_text = form.get(f"option_{key}")
-            if option_text:
-                db.add(QuestionOption(question_id=new_question.id, text=option_text, is_correct=(key == correct_key)))
+        for key, option_text in opsi_isi.items():
+            db.add(QuestionOption(question_id=new_question.id, text=option_text, is_correct=(key == kunci_pg)))
         db.commit()
     return RedirectResponse(url=f"/teacher/question-banks/{bank_id}", status_code=303)
 # --- TAMBAHAN FASE 8: EXAM ENGINE ---
@@ -370,6 +397,27 @@ async def toggle_publish(exam_id: int, request: Request, db: Session = Depends(g
         # Simpan perubahan
         
     return RedirectResponse(url="/teacher/exams", status_code=303)
+@router.post("/exams/{exam_id}/acak")
+# Menyalakan / mematikan pengacakan soal atau opsi pada ujian yang sudah dibuat
+async def toggle_acak(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    jenis = form.get("jenis")
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam or jenis not in ("soal", "opsi"):
+        return RedirectResponse(url="/teacher/exams", status_code=303)
+    if jenis == "opsi":
+        # urutan opsi dihitung saat halaman dibuka: bila diubah ketika ada siswa sedang mengerjakan,
+        # huruf A-D di layar mereka bisa berpindah di tengah ujian. Tolak dulu.
+        aktif = db.query(ExamSession).filter(ExamSession.exam_id == exam.id, ExamSession.status == "active").count()
+        if aktif:
+            return RedirectResponse(url="/teacher/exams?error=opsi_aktif", status_code=303)
+        exam.randomize_options = not exam.randomize_options
+    else:
+        # urutan soal disimpan di sesi saat siswa mulai: sesi yang sudah berjalan tidak berubah
+        exam.randomize_questions = not exam.randomize_questions
+    db.commit()
+    return RedirectResponse(url="/teacher/exams", status_code=303)
+
 # --- TAMBAHAN FASE 10: GRADE ENGINE ---
 
 @router.get("/exams/{exam_id}/results/export")
@@ -675,6 +723,23 @@ async def reset_pin(student_id: int, request: Request, db: Session = Depends(get
 
 
 # --- AKUN GURU: ganti password lewat web ---
+@router.get("/qr", response_class=HTMLResponse)
+async def halaman_qr(request: Request, user=Depends(require_teacher)):
+    """QR besar untuk ditayangkan di proyektor: siswa memindai lalu langsung ke halaman masuk."""
+    alamat = alamat_siswa(str(request.base_url))
+    template = templates_env.get_template("teacher/qr.html")
+    return HTMLResponse(content=template.render(request=request, user=user, alamat=alamat,
+                                                svg=svg_qr(alamat["url"]) if alamat else None))
+
+
+@router.get("/qr/status")
+async def status_qr(request: Request, user=Depends(require_teacher)):
+    """Dipanggil halaman QR tiap beberapa detik: bila alamat berganti (tunnel putus lalu menyala lagi),
+    halaman dimuat ulang dengan QR baru."""
+    alamat = alamat_siswa(str(request.base_url))
+    return {"url": alamat["url"] if alamat else None}
+
+
 @router.get("/account", response_class=HTMLResponse)
 async def account_page(request: Request, user=Depends(require_teacher)):
     template = templates_env.get_template("teacher/account.html")
@@ -799,7 +864,7 @@ async def list_students(request: Request, db: Session = Depends(get_db), user=De
 
 # --- DETAIL SESI: jawaban per soal, koreksi esai, log aktivitas ---
 NAMA_KEJADIAN = {"mulai": "Mulai ujian", "lihat": "Melihat soal", "pilih": "Memilih jawaban", "esai": "Menulis esai",
-                 "kirim": "Mengirim jawaban", "pindah_tab": "Keluar dari halaman ujian", "keluar_layar_penuh": "Keluar layar penuh",
+                 "kirim": "Mengirim jawaban", "kunci": "Mengganti jawaban yang sudah terkunci", "pindah_tab": "Keluar dari halaman ujian", "keluar_layar_penuh": "Keluar layar penuh",
                  "salin": "Mencoba menyalin", "tempel": "Mencoba menempel", "klik_kanan": "Klik kanan",
                  "screenshot": "Menekan PrintScreen", "cetak": "Mencoba mencetak", "devtools": "Membuka alat pengembang",
                  "lainnya": "Pelanggaran lain"}

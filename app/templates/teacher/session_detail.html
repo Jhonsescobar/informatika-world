@@ -91,7 +91,7 @@
           {% if e and e.question_id and soal.get(e.question_id) %}<span class="dim"> · soal {{ (baris|selectattr('q.id', 'equalto', e.question_id)|map(attribute='no')|first) or '' }}</span>{% endif %}
           {% if e and e.kind == 'pilih' and opsi.get(e.option_id) %}<span class="dim"> → {{ opsi[e.option_id].text|e|truncate(60) }}</span>{% endif %}
           {% if e and e.kind == 'esai' %}<span class="dim"> → {{ (e.detail or '')|length }} huruf</span>{% endif %}
-          {% if e and e.kind in ('mulai', 'kirim') and e.detail %}<span class="dim"> · {{ e.detail|e }}</span>{% endif %}
+          {% if e and e.kind in ('mulai', 'kirim', 'kunci') and e.detail %}<span class="dim"> · {{ e.detail|e }}</span>{% endif %}
         </span>
       </li>
       {% else %}

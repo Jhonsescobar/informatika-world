@@ -10,6 +10,46 @@ from app.models.question import Question, QuestionOption
 # Jawaban yang dikirim sampai 2 menit setelah waktu habis masih diterima (jaringan lambat)
 TOLERANSI_KIRIM = timedelta(minutes=2)
 
+# Kunci jawaban pilihan ganda: 60 detik setelah PERTAMA kali dipilih, jawaban tidak bisa diganti lagi.
+# Siswa harus yakin sebelum memilih; jawaban teman di sebelah tidak bisa lagi disalin belakangan.
+# Waktu diukur server (saat pilihan tercatat), toleransi 5 detik untuk jaringan lambat.
+KUNCI_JAWABAN = timedelta(seconds=60)
+TOLERANSI_KUNCI = timedelta(seconds=5)
+
+
+def kunci_pilihan(db: Session, sesi: ExamSession, kini: datetime | None = None) -> dict:
+    """{id_soal: {"batas": waktu kunci, "opsi": jawaban yang berlaku, "terkunci": bool}} dari log pilihan.
+    Jawaban yang berlaku = pilihan terakhir yang tercatat sebelum batas + toleransi."""
+    kini = kini or datetime.now(timezone.utc)
+    hasil = {}
+    for e in (db.query(ExamEvent).filter(ExamEvent.session_id == sesi.id, ExamEvent.kind == "pilih")
+              .order_by(ExamEvent.id)):
+        if not e.created_at or not e.option_id:
+            continue
+        k = hasil.get(e.question_id)
+        if k is None:
+            hasil[e.question_id] = {"batas": e.created_at + KUNCI_JAWABAN, "opsi": e.option_id}
+        elif e.created_at <= k["batas"] + TOLERANSI_KUNCI:
+            k["opsi"] = e.option_id
+    for k in hasil.values():
+        k["terkunci"] = kini > k["batas"] + TOLERANSI_KUNCI
+        k["sisa"] = max(0, int((k["batas"] - kini).total_seconds() + 0.999))
+    return hasil
+
+
+def terapkan_kunci(db: Session, sesi: ExamSession, pilihan: dict, kini: datetime | None = None) -> int:
+    """Pilihan yang sudah terkunci menggantikan isi form. Mengembalikan jumlah jawaban yang diubah
+    setelah terkunci (diabaikan), supaya bisa dicatat untuk guru."""
+    diabaikan = 0
+    for qid, k in kunci_pilihan(db, sesi, kini).items():
+        if not k["terkunci"]:
+            continue
+        if pilihan.get(qid) != k["opsi"]:
+            if qid in pilihan:
+                diabaikan += 1
+            pilihan[qid] = k["opsi"]
+    return diabaikan
+
 
 def id_soal_sesi(db: Session, sesi: ExamSession, exam: Exam) -> list[int]:
     """Soal yang didapat siswa di sesi ini (urut tampil). Sesi lama tanpa daftar = semua soal bank."""
@@ -90,6 +130,9 @@ def selesaikan_dari_log(db: Session, sesi: ExamSession, exam: Exam | None = None
             pilihan[e.question_id] = e.option_id
         elif e.kind == "esai":
             esai[e.question_id] = e.detail or ""
+    # jawaban yang terkunci berlaku walau ada catatan lain sesudahnya
+    for qid, k in kunci_pilihan(db, sesi).items():
+        pilihan[qid] = k["opsi"]
     nilai_sesi(db, sesi, exam, pilihan, esai)
     sesi.status = "expired"
     sesi.submitted_at = sesi.submitted_at or datetime.now(timezone.utc)

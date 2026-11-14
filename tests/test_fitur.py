@@ -121,7 +121,7 @@ def test_log_aktivitas_hanya_soal_milik_sesi(db, data, masuk_siswa):
              {"k": "pilih", "q": s0["id"], "o": data["soal"][1]["benar"]}]       # opsi milik soal lain
     r = ani.post(f"/student/exam/events/{sesi}", content=json.dumps(kirim),
                  headers={"content-type": "application/json"})
-    assert r.json() == {"ok": True, "saved": 1}
+    assert r.json() == {"ok": True, "saved": 1, "terkunci": []}
     pilih = db.query(ExamEvent).filter_by(session_id=sesi, kind="pilih").all()
     assert len(pilih) == 1
     budi = masuk_siswa(data["siswa"]["Budi"])

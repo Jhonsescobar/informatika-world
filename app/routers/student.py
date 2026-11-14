@@ -15,7 +15,8 @@ from app.database import get_db
 from app.utils.deps import require_student
 from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
-from app.services.penilaian import id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM
+from app.services.penilaian import (id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM,
+                                    kunci_pilihan, terapkan_kunci, KUNCI_JAWABAN, TOLERANSI_KUNCI)
 from app.services.rekap import rekap_kelas, BATAS_REMEDIAL as BATAS_REMEDIAL_REKAP
 from app.services.esai import nilai_esai
 import json
@@ -194,23 +195,27 @@ async def take_exam(session_id: int, request: Request, db: Session = Depends(get
                 pilihan[e.question_id] = e.option_id
             else:
                 esai[e.question_id] = e.detail or ""
+        kunci = kunci_pilihan(db, session)
         exam_data = []
         for qid in ids:
             q = per_id.get(qid)
             if not q:
                 continue
-            options = db.query(QuestionOption).filter(QuestionOption.question_id == q.id).all()
+            options = db.query(QuestionOption).filter(QuestionOption.question_id == q.id).order_by(QuestionOption.id).all()
             if exam.randomize_options:
                 # urutan opsi tetap per siswa (acak tapi stabil saat dimuat ulang)
                 random.Random(f"{session.id}-{q.id}").shuffle(options)
+            k = kunci.get(q.id)
             exam_data.append({"question": q, "options": options,
-                              "terpilih": pilihan.get(q.id), "teks": esai.get(q.id, "")})
+                              "terpilih": k["opsi"] if k else pilihan.get(q.id), "teks": esai.get(q.id, ""),
+                              "terkunci": bool(k) and k["sisa"] == 0, "sisa_kunci": k["sisa"] if k else None})
         template = templates_env.get_template("student/take_exam.html")
         html_content = template.render(
             request=request, exam=exam, exam_data=exam_data, session=session,
             expires_at=session.expires_at.isoformat(),
             student_name=db.query(Student.name).filter(Student.id == session.student_id).scalar() or "",
-            sekarang=datetime.now().strftime("%d/%m/%Y %H:%M"), maks_pelanggaran=MAKS_PELANGGARAN
+            sekarang=datetime.now().strftime("%d/%m/%Y %H:%M"), maks_pelanggaran=MAKS_PELANGGARAN,
+            kunci_detik=int(KUNCI_JAWABAN.total_seconds())
         )
         return HTMLResponse(content=html_content)
     except Exception:
@@ -244,6 +249,10 @@ async def submit_exam(session_id: int, request: Request, db: Session = Depends(g
                 esai[int(key[6:])] = nilai if isinstance(nilai, str) else ""
             elif key.startswith("question_") and key[9:].isdigit() and str(nilai).isdigit():
                 pilihan[int(key[9:])] = int(nilai)
+        diabaikan = terapkan_kunci(db, session, pilihan)
+        if diabaikan:
+            db.add(ExamEvent(session_id=session.id, kind="kunci",
+                             detail=f"{diabaikan} jawaban diganti setelah terkunci, diabaikan"))
         total_score, total_wrong = nilai_sesi(db, session, exam, pilihan, esai)
         db.add(ExamEvent(session_id=session.id, kind="kirim", detail="otomatis" if form.get("otomatis") else None))
         db.commit()
@@ -328,6 +337,9 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
     sisa = MAKS_KEJADIAN_SESI - db.query(func.count(ExamEvent.id)).filter(ExamEvent.session_id == session.id).scalar()
     sisa_esai = MAKS_ESAI_SESI - db.query(func.count(ExamEvent.id)).filter(ExamEvent.session_id == session.id,
                                                                             ExamEvent.kind == "esai").scalar()
+    kini = datetime.now(timezone.utc)
+    kunci = kunci_pilihan(db, session, kini)
+    terkunci = set()
     simpan = 0
     for item in data[:100]:
         if simpan >= sisa or not isinstance(item, dict):
@@ -337,6 +349,13 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
             continue
         if jenis == "pilih" and (not isinstance(oid, int) or opsi_soal.get(oid) != qid):
             continue
+        if jenis == "pilih":
+            k = kunci.get(qid)
+            if k is None:                         # pilihan pertama: waktu kunci mulai berjalan
+                kunci[qid] = {"batas": kini + KUNCI_JAWABAN}
+            elif kini > k["batas"] + TOLERANSI_KUNCI:
+                terkunci.add(qid)                 # sudah terkunci: perubahan tidak dicatat
+                continue
         if jenis == "esai":
             if sisa_esai <= 0:
                 continue
@@ -346,7 +365,7 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
                          option_id=oid if jenis == "pilih" else None, detail=detail))
         simpan += 1
     db.commit()
-    return JSONResponse({"ok": True, "saved": simpan})
+    return JSONResponse({"ok": True, "saved": simpan, "terkunci": sorted(terkunci)})
 
 # --- ANTI-CHEAT: catat pelanggaran selama ujian ---
 JENIS_PELANGGARAN = {"pindah_tab", "keluar_layar_penuh", "salin", "tempel", "klik_kanan", "screenshot", "cetak", "devtools"}
@@ -458,4 +477,4 @@ async def achievements_page(request: Request, db: Session = Depends(get_db), use
         )
         return HTMLResponse(content=html_content)
     except Exception as e:
-        return gagal("Lencana")
+        return gagal("Lencana")

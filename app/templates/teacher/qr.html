@@ -1,0 +1,53 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'qr' %}
+{% block title %}QR Siswa · Informatika World{% endblock %}
+{% block eyebrow %}Tayangkan di proyektor{% endblock %}
+{% block heading %}Pindai untuk masuk{% endblock %}
+{% block lead %}<p class="lead">Siswa memindai kode ini dengan kamera HP, lalu langsung sampai di halaman masuk. Halaman ini memperbarui sendiri bila alamat berganti.</p>{% endblock %}
+{% block content %}
+{% if alamat %}
+<section class="qr-panggung" id="panggung" aria-label="Kode QR alamat siswa" data-url="{{ alamat.url|e }}">
+  <div class="qr-kotak">{{ svg }}</div>
+  <div class="qr-info">
+    <span class="chip {{ 'chip-teal' if alamat.mode == 'internet' else 'chip-amber' }} chip-dot">{{ 'Online lewat internet' if alamat.mode == 'internet' else 'Jaringan lokal (WiFi yang sama)' }}</span>
+    <p class="qr-url">{{ alamat.url|e }}</p>
+    {% if alamat.mode == 'lokal' %}<p class="dim">HP siswa harus tersambung ke WiFi/hotspot yang sama dengan laptop ini.</p>{% endif %}
+    {% if alamat.lain %}<p class="dim text-sm">Bila tidak terbuka, coba: {% for u in alamat.lain %}<span class="text-white">{{ u|e }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+    {% if alamat.waktu %}<p class="dim text-sm">Alamat dibuat pukul {{ alamat.waktu }}. Alamat internet berganti setiap ONLINE.bat dijalankan ulang.</p>{% endif %}
+    <div class="flex flex-wrap gap-2 mt-2">
+      <button type="button" class="btn btn-primary" id="tombol-penuh">{{ icon('qr') }}Layar penuh</button>
+      <button type="button" class="btn btn-ghost" id="tombol-salin">Salin alamat</button>
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="panel stack" style="max-width:640px" aria-label="Belum online">
+  <div class="notice notice-amber" role="status">{{ icon('info') }}<span>Web belum online untuk siswa, jadi belum ada QR.</span></div>
+  <p>Jalankan <strong class="text-white">ONLINE.bat</strong> (klik dua kali) di laptop ini, pilih mode internet atau jaringan lokal. Begitu alamat siap, QR muncul di sini dengan sendirinya.</p>
+  <p class="dim text-sm">Halaman ini memeriksa ulang setiap 5 detik.</p>
+</section>
+{% endif %}
+<script>
+(function () {
+  var sekarang = {{ alamat.url|tojson if alamat else 'null' }};
+  setInterval(function () {
+    fetch('/teacher/qr/status', {credentials: 'same-origin', cache: 'no-store'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.url !== sekarang) location.reload(); })
+      .catch(function () {});
+  }, 5000);
+  var panggung = document.getElementById('panggung');
+  var penuh = document.getElementById('tombol-penuh');
+  if (penuh && panggung) penuh.addEventListener('click', function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (panggung.requestFullscreen) panggung.requestFullscreen();
+  });
+  var salin = document.getElementById('tombol-salin');
+  if (salin && panggung) salin.addEventListener('click', function () {
+    var u = panggung.getAttribute('data-url');
+    if (navigator.clipboard) navigator.clipboard.writeText(u).then(function () { salin.textContent = 'Tersalin'; });
+  });
+})();
+</script>
+{% endblock %}

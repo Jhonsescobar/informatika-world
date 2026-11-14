@@ -78,6 +78,11 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - [x] Ekspor Excel aman dari rumus jahat (nama diawali `=`, `+`, `-`, `@`)
 - [x] Login PIN tidak lagi bergantung pada driver database (konversi `student_id` ke angka)
 
+- [x] Jawaban PG terkunci 1 menit setelah pertama dipilih (hitung mundur di layar; server menolak penggantian lewat log maupun form; percobaan tercatat di log guru)
+- [x] Acak soal & opsi tercentang bawaan untuk ujian baru; bisa dinyalakan/dimatikan pada ujian lama (acak opsi ditolak saat ada siswa sedang mengerjakan)
+- [x] Poin soal bisa diubah langsung di bank (1–100, terkunci bila bank sudah dipakai ujian); total poin tampil; soal PG tanpa kunci valid / esai tanpa kunci ditolak server
+- [x] Halaman QR Siswa (/teacher/qr) untuk proyektor: alamat dari ONLINE.bat (logs/alamat.json), ikut berganti saat tunnel berganti, alamat divalidasi
+
 ## Roadmap: perlu, belum dikerjakan
 
 ### Prioritas tinggi (keamanan & data)
