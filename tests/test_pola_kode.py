@@ -31,3 +31,23 @@ def test_tidak_ada_await_saat_memegang_koneksi_database():
                         temuan.append(f"{f.name}:{n} {m.group(1)}: {l.strip()[:60]}")
             i = j
     assert not temuan, "await setelah memakai db tanpa melepas koneksi:\n" + "\n".join(temuan)
+
+
+def test_online_ps1_fungsi_didefinisikan_sebelum_dipakai():
+    """PowerShell membaca skrip dari atas: fungsi yang dipanggil sebelum didefinisikan membuat
+    ONLINE.bat langsung berhenti ("... is not recognized"). Pernah terjadi pada Hapus-Alamat."""
+    import re
+    from pathlib import Path
+    baris = Path(__file__).resolve().parents[1].joinpath("online.ps1").read_text(encoding="utf-8-sig").splitlines()
+    definisi = {m.group(1): i for i, b in enumerate(baris) if (m := re.match(r"\s*function\s+([\w-]+)", b))}
+    salah = []
+    kedalaman = 0
+    for i, b in enumerate(baris):
+        kode = b.split("#", 1)[0]
+        if kedalaman == 0 and not re.match(r"\s*function\s", kode):
+            # pemanggilan di tingkat atas skrip (bukan di dalam fungsi lain) berjalan saat itu juga
+            for nama, d in definisi.items():
+                if re.search(rf"(?<![\w-]){re.escape(nama)}(?![\w-])", kode) and i < d:
+                    salah.append(f"baris {i + 1}: {nama} dipakai sebelum didefinisikan (baris {d + 1})")
+        kedalaman += kode.count("{") - kode.count("}")
+    assert not salah, salah

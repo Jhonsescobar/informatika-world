@@ -24,6 +24,23 @@ $alamatLain = @()
 function Tulis($teks, $warna = "Gray") { Write-Host $teks -ForegroundColor $warna }
 function Berhenti($pesan) { Tulis $pesan Red; Read-Host "Enter untuk keluar"; exit 1 }
 
+# Alamat untuk halaman QR guru. Ditulis ulang setiap alamat berganti DAN setiap web dinyalakan ulang
+# (web menganggap file yang lebih tua dari dirinya sebagai sisa sesi lama).
+function Simpan-Alamat {
+    if (-not $script:alamatSekarang) { return }
+    $isi = @{ url = $script:alamatSekarang; lain = @($script:alamatLain); waktu = (Get-Date -Format s) } | ConvertTo-Json -Compress
+    try {
+        [IO.File]::WriteAllText("$fileAlamat.tmp", $isi)
+        Move-Item -Force -Path "$fileAlamat.tmp" -Destination $fileAlamat
+    } catch { Tulis "  (alamat untuk halaman QR gagal disimpan: $($_.Exception.Message))" DarkGray }
+}
+function Hapus-Alamat { Remove-Item -Path $fileAlamat, "$fileAlamat.tmp" -Force -ErrorAction SilentlyContinue }
+function Buka-QR {
+    Tulis "  Halaman QR untuk proyektor dibuka di browser: http://127.0.0.1:$PORT/teacher/qr" DarkGray
+    try { Start-Process "http://127.0.0.1:$PORT/teacher/qr" } catch {}
+}
+
+
 if (-not (Test-Path $python)) { Berhenti "venv tidak ditemukan di folder ini." }
 New-Item -ItemType Directory -Force -Path $folderLog | Out-Null
 
@@ -99,22 +116,6 @@ function Tampilkan-Alamat($alamat, $catatan) {
     Tulis "  $alamat" Yellow
     Tulis ""
     foreach ($c in $catatan) { Tulis "  $c" }
-}
-
-# Alamat untuk halaman QR guru. Ditulis ulang setiap alamat berganti DAN setiap web dinyalakan ulang
-# (web menganggap file yang lebih tua dari dirinya sebagai sisa sesi lama).
-function Simpan-Alamat {
-    if (-not $script:alamatSekarang) { return }
-    $isi = @{ url = $script:alamatSekarang; lain = @($script:alamatLain); waktu = (Get-Date -Format s) } | ConvertTo-Json -Compress
-    try {
-        [IO.File]::WriteAllText("$fileAlamat.tmp", $isi)
-        Move-Item -Force -Path "$fileAlamat.tmp" -Destination $fileAlamat
-    } catch { Tulis "  (alamat untuk halaman QR gagal disimpan: $($_.Exception.Message))" DarkGray }
-}
-function Hapus-Alamat { Remove-Item -Path $fileAlamat, "$fileAlamat.tmp" -Force -ErrorAction SilentlyContinue }
-function Buka-QR {
-    Tulis "  Halaman QR untuk proyektor dibuka di browser: http://127.0.0.1:$PORT/teacher/qr" DarkGray
-    try { Start-Process "http://127.0.0.1:$PORT/teacher/qr" } catch {}
 }
 
 function Alamat-Lokal {
