@@ -96,6 +96,15 @@ async def student_dashboard(request: Request, db: Session = Depends(get_db), use
     except Exception:
         return gagal("Dashboard siswa", "/login")
 
+# --- SINYAL ONLINE: halaman siswa mengirim "masih di sini" berkala (lihat static/js/iw-hadir.js) ---
+@router.post("/ping")
+async def ping_siswa(db: Session = Depends(get_db), user=Depends(require_student)):
+    db.query(Student).filter(Student.id == int(user.get("sub"))).update(
+        {Student.last_seen: datetime.now(timezone.utc)}, synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
 # --- PERKEMBANGAN: grafik nilai ujian naik/turun ---
 @router.get("/progress", response_class=HTMLResponse)
 async def progress_page(request: Request, db: Session = Depends(get_db), user=Depends(require_student)):

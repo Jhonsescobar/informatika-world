@@ -23,6 +23,8 @@ class Student(Base):
     # PIN 4 digit siswa yang sudah di-hash
 
     is_active = Column(Boolean, default=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
+    # Sinyal terakhir siswa membuka aplikasi (dikirim berkala dari halaman siswa), untuk status online di pantau
     # Status siswa
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

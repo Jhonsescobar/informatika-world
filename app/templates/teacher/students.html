@@ -22,6 +22,7 @@
     <div class="px-6 pt-6 pb-4 flex flex-col gap-4" style="border-bottom:1px solid var(--line)">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="h-section" id="judul-daftar">Daftar siswa</h2>
+        <a href="/teacher/students/pantau" class="btn btn-ghost btn-sm">{{ icon('chart') }}Pantau sekarang</a>
         <form method="GET" action="/teacher/students" class="flex gap-2 w-full sm:w-auto">
           {% if filter_rombel %}<input type="hidden" name="rombel" value="{{ filter_rombel|e }}">{% endif %}
           <input type="search" name="q" value="{{ cari|e }}" placeholder="Cari nama" class="input" style="min-height:38px;padding:6px 12px;font-size:14px" aria-label="Cari nama siswa">

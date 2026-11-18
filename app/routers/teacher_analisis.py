@@ -5,16 +5,17 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.academic import Rombel, SchoolClass
 from app.models.exam import Exam
 from app.models.student import Student
-from app.routers.teacher import TINGKAT, templates_env, unduh_xlsx
+from app.routers.teacher import TINGKAT, kelas_aktif, templates_env, unduh_xlsx
 from app.services.analisis import analisis_butir
 from app.services.excel import buku_remedial
+from app.services.pantau import pantau_data
 from app.services.perkembangan import bentuk_grafik, riwayat_siswa
 from app.services.remedial import beri_remedial, daftar_remedial
 from app.services.rekap import kkm_akhir, rekap_kelas, tahun_aktif, urutkan
@@ -84,3 +85,15 @@ async def rapor(kelas: str, request: Request, db: Session = Depends(get_db), use
     nama_rombel = (db.query(Rombel.rombel_name).filter(Rombel.id == int(rombel)).scalar() if rombel.isdigit() else None)
     return tampil("teacher/rapor.html", request=request, rekap=rekap, kelas=kelas, nama_rombel=nama_rombel,
                   kkm=kkm_akhir(tahun_aktif(db)), dicetak=datetime.now(), user=user)
+
+
+# --- Pantau: siswa yang online dan yang sedang mengerjakan ujian (diperbarui otomatis di halaman) ---
+@router.get("/students/pantau", response_class=HTMLResponse)
+async def pantau_page(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    kelas = kelas_aktif(request)
+    return tampil("teacher/pantau.html", request=request, kelas=kelas, data=pantau_data(db, kelas), user=user)
+
+
+@router.get("/students/pantau/data")
+async def pantau_json(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    return JSONResponse(pantau_data(db, kelas_aktif(request)), headers={"Cache-Control": "no-store"})

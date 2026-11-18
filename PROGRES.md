@@ -165,3 +165,9 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Kode Python yang menempel di satu baris (nama = "A"print(nama)) dipisah otomatis bila hasilnya valid.
 - "kode_tidak_valid": true untuk soal yang sengaja berisi kode salah.
 - Prompt AI dan contoh: rumus Excel, isian rumpang dengan ___.
+
+## Pantau siswa: online dan sedang ujian (18 Nov 2026)
+- Siswa mengirim sinyal tiap 60 detik saat tab terbuka dan aktif (`POST /student/ping`, `static/js/iw-hadir.js`). Kolom `students.last_seen` lewat migrasi `a7c3e91f2b40`.
+- Guru: `/teacher/students/pantau` (tombol di Daftar siswa), diperbarui tiap 10 detik dari `/teacher/students/pantau/data`.
+- Online = sinyal terakhir dalam 2 menit. Sedang ujian = sesi aktif yang belum lewat batas waktu, dengan progres soal dan pelanggaran.
+- Hanya guru yang bisa melihat; siswa diarahkan keluar dari halaman pantau.

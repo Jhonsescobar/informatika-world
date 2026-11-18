@@ -1,0 +1,102 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'students' %}
+{% block title %}Pantau siswa · Informatika World{% endblock %}
+{% block back %}<a href="/teacher/students" class="back-link">{{ icon('arrow-left') }}Siswa & rombel</a>{% endblock %}
+{% block eyebrow %}Pantau · Kelas {{ kelas }}{% endblock %}
+{% block heading %}Siapa yang <em>sedang aktif</em>{% endblock %}
+{% block lead %}<p class="lead">Diperbarui otomatis. Siswa dianggap online bila aplikasi terbuka dan aktif dalam 2 menit terakhir.</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-3">
+    <div class="panel stat stat-light"><span class="stat-label">Online</span><span class="stat-value" id="r-online">{{ data.ringkas.online }}</span></div>
+    <div class="panel stat"><span class="stat-label">Sedang ujian</span><span class="stat-value" id="r-ujian" style="color:var(--teal)">{{ data.ringkas.ujian }}</span></div>
+    <div class="panel stat"><span class="stat-label">Pelanggaran</span><span class="stat-value" id="r-pelanggaran" style="color:var(--amber)">{{ data.ringkas.pelanggaran }}</span></div>
+  </div>
+
+  <section class="panel panel-tight" aria-labelledby="judul-ujian">
+    <div class="px-6 pt-6 pb-4" style="border-bottom:1px solid var(--line)">
+      <h2 class="h-section" id="judul-ujian">Sedang mengerjakan</h2>
+    </div>
+    <div id="daftar-ujian" class="rows"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="judul-online">
+    <h2 class="h-section" id="judul-online">Online di aplikasi</h2>
+    <div id="daftar-online" class="mt-4" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  </section>
+</div>
+
+<script id="data-awal" type="application/json">{{ data|tojson }}</script>
+<script>
+(function () {
+  var DATA_URL = "/teacher/students/pantau/data";
+  var data = JSON.parse(document.getElementById("data-awal").textContent);
+
+  function el(tag, cls, teks) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (teks !== undefined && teks !== null) n.textContent = teks;
+    return n;
+  }
+  function lalu(detik) {
+    if (detik === null || detik === undefined) return "";
+    if (detik < 60) return detik + " dtk lalu";
+    return Math.floor(detik / 60) + " mnt lalu";
+  }
+  function kosong(parent, teks) {
+    var p = el("p", "muted", teks);
+    p.style.padding = "20px 24px";
+    p.style.margin = "0";
+    parent.appendChild(p);
+  }
+
+  function render(d) {
+    document.getElementById("r-online").textContent = d.ringkas.online;
+    document.getElementById("r-ujian").textContent = d.ringkas.ujian;
+    document.getElementById("r-pelanggaran").textContent = d.ringkas.pelanggaran;
+
+    var ujian = document.getElementById("daftar-ujian");
+    ujian.replaceChildren();
+    if (!d.ujian.length) kosong(ujian, "Belum ada siswa yang sedang mengerjakan ujian.");
+    d.ujian.forEach(function (x) {
+      var baris = el("div", "row");
+      var utama = el("div", "row-main");
+      utama.appendChild(el("p", "row-title", x.nama));
+      utama.appendChild(el("p", "row-meta", x.ujian + " · " + x.rombel + " · mulai " + x.mulai));
+      baris.appendChild(utama);
+      var persen = x.total ? Math.round(x.terjawab * 100 / x.total) : 0;
+      var progres = el("div", "");
+      progres.style.minWidth = "140px";
+      progres.appendChild(el("p", "mono", x.terjawab + " dari " + x.total + " soal"));
+      var bar = el("div", "meter");
+      var isi = el("span", "");
+      isi.style.width = persen + "%";
+      bar.appendChild(isi);
+      progres.appendChild(bar);
+      baris.appendChild(progres);
+      baris.appendChild(el("span", "text-sm dim", "● " + lalu(x.aktif_lalu)));
+      if (x.pelanggaran) baris.appendChild(el("span", "chip chip-amber", "⚠ " + x.pelanggaran + " pelanggaran"));
+      ujian.appendChild(baris);
+    });
+
+    var online = document.getElementById("daftar-online");
+    online.replaceChildren();
+    if (!d.online.length) kosong(online, "Belum ada siswa yang online.");
+    d.online.forEach(function (x) {
+      var chip = el("span", "chip" + (x.ujian ? " chip-amber" : " chip-teal"));
+      chip.textContent = (x.ujian ? "Ujian · " : "") + x.nama + " · " + lalu(x.lalu);
+      online.appendChild(chip);
+    });
+  }
+
+  render(data);
+  setInterval(function () {
+    fetch(DATA_URL, { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) render(d); })
+      .catch(function () {});
+  }, (data.pantau_detik || 10) * 1000);
+})();
+</script>
+{% endblock %}

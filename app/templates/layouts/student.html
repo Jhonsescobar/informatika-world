@@ -30,4 +30,5 @@
   <a href="{{ href }}" class="dock-link{{ ' is-active' if active_page == key }}"{% if active_page == key %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
   {% endfor %}
 </nav>
+<script src="{{ aset('js/iw-hadir.js') }}" defer></script>
 {% endblock %}
