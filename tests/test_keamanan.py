@@ -123,3 +123,43 @@ def test_header_keamanan(guru):
     r = guru.get("/teacher/grades")
     assert r.headers["x-frame-options"] == "DENY" and r.headers["x-content-type-options"] == "nosniff"
     assert r.headers["cache-control"] == "no-store"
+
+
+def test_halaman_pin_butuh_tanda_dari_pencarian(client, data):
+    """Id siswa berurutan tidak boleh bisa dipakai mengintip nama siswa."""
+    sid = data["siswa"]["Ani"]
+    r = client.get(f"/student/verify?student_id={sid}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login/siswa"
+    r = client.get(f"/student/verify?student_id={sid}&t=palsu", follow_redirects=False)
+    assert r.status_code == 303
+    hasil = client.get("/auth/student/search", params={"name": "Ani"}).json()
+    ani = next(h for h in hasil if h["name"] == "Ani")
+    r = client.get(f"/student/verify?student_id={ani['id']}&t={ani['t']}")
+    assert r.status_code == 200 and "Ani" in r.text
+    # tanda milik siswa lain tidak berlaku
+    budi = next(h for h in client.get("/auth/student/search", params={"name": "Budi"}).json() if h["name"] == "Budi")
+    r = client.get(f"/student/verify?student_id={ani['id']}&t={budi['t']}", follow_redirects=False)
+    assert r.status_code == 303
+
+
+def test_pin_salah_kembali_ke_halaman_pin_bertanda(client, data):
+    r = client.post("/auth/student/verify", data={"student_id": str(data["siswa"]["Ani"]), "pin": "0000"}, follow_redirects=False)
+    assert "&t=" in r.headers["location"] and "error=pin" in r.headers["location"]
+    assert client.get(r.headers["location"]).status_code == 200
+
+
+def test_kiriman_dari_situs_lain_ditolak(guru):
+    r = guru.post("/teacher/kelas", data={"kelas": "IX"}, headers={"Origin": "https://jahat.example"}, follow_redirects=False)
+    assert r.status_code == 403
+    r = guru.post("/teacher/kelas", data={"kelas": "IX"}, headers={"Referer": "https://jahat.example/x"}, follow_redirects=False)
+    assert r.status_code == 403
+    sama = guru.post("/teacher/kelas", data={"kelas": "IX"}, headers={"Origin": "http://testserver"}, follow_redirects=False)
+    assert sama.status_code == 303                                  # dari web sendiri: lolos
+    lewat_tunnel = guru.post("/teacher/kelas", data={"kelas": "IX"},
+                             headers={"Origin": "https://abc.trycloudflare.com", "X-Forwarded-Host": "abc.trycloudflare.com"}, follow_redirects=False)
+    assert lewat_tunnel.status_code == 303
+
+
+def test_hsts_hanya_lewat_https(client):
+    assert "strict-transport-security" not in client.get("/login/guru").headers
+    assert "strict-transport-security" in client.get("/login/guru", headers={"X-Forwarded-Proto": "https"}).headers

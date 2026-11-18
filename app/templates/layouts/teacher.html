@@ -13,6 +13,14 @@
 <div class="shell">
   <aside class="sidebar">
     {{ brand('/teacher/materials') }}
+    <form action="/teacher/kelas" method="POST" class="kelas-ctx" aria-label="Kelas yang sedang dikelola">
+      <input type="hidden" name="kembali" value="{{ request.url.path }}">
+      <p class="kelas-lbl">Mengelola</p>
+      <p class="kelas-val">Kelas {{ kelas_aktif(request) }}</p>
+      <div class="kelas-seg" role="group" aria-label="Pilih kelas">
+        {% for k in kelas_pilihan %}<button type="submit" name="kelas" value="{{ k }}" class="{{ 'is-on' if k == kelas_aktif(request) }}"{% if k == kelas_aktif(request) %} aria-pressed="true"{% endif %}>{{ k }}</button>{% endfor %}
+      </div>
+    </form>
     <nav class="side-nav" aria-label="Menu guru">
       <p class="side-title">Ruang guru</p>
       {% for key, href, label, ic in menu %}

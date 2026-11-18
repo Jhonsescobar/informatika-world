@@ -66,6 +66,7 @@ def test_tanpa_acak_urutan_bank(db, data, masuk_siswa):
 
 
 def test_guru_bisa_mengubah_acak_ujian_lama(guru, db, data):
+    guru.post("/teacher/kelas", data={"kelas": "VII"})
     e = buat_ujian(db, data, "Lama", randomize_questions=False, randomize_options=False)
     guru.post(f"/teacher/exams/{e}/acak", data={"jenis": "soal"})
     guru.post(f"/teacher/exams/{e}/acak", data={"jenis": "opsi"})

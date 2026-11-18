@@ -56,13 +56,19 @@ if ($mode -eq "1" -and -not (Test-Path $cloudflared)) { Berhenti "cloudflared.ex
 $alamatIkat = if ($mode -eq "2") { "0.0.0.0" } else { "127.0.0.1" }
 
 # ---------- bereskan sisa sesi lalu (mis. jendela ditutup dengan X, bukan Q) ----------
-try {
-    Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction Stop | ForEach-Object {
-        $lama = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
+# Dicoba berulang sampai port benar-benar bebas: proses lama kadang butuh beberapa detik untuk lepas,
+# dan web baru yang dinyalakan terlalu cepat gagal dengan "[Errno 10048]".
+for ($coba = 0; $coba -lt 10; $coba++) {
+    $pemegang = @(Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue)
+    if ($pemegang.Count -eq 0) { break }
+    foreach ($k in $pemegang) {
+        $lama = Get-Process -Id $k.OwningProcess -ErrorAction SilentlyContinue
         if ($lama -and $lama.ProcessName -like "python*") { Stop-Process -Id $lama.Id -Force -ErrorAction SilentlyContinue; Tulis "  Web sisa sesi sebelumnya dimatikan." DarkGray }
         elseif ($lama) { Berhenti "Port $PORT sedang dipakai program lain ($($lama.ProcessName)). Tutup program itu dulu." }
     }
-} catch {}
+    Start-Sleep -Seconds 1
+}
+if (@(Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue).Count -gt 0) { Berhenti "Port $PORT masih tertahan. Restart laptop, lalu jalankan ONLINE.bat lagi." }
 Get-Process -Name cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $cloudflared } | Stop-Process -Force -ErrorAction SilentlyContinue
 Hapus-Alamat   # alamat sesi lalu (tunnel lama) jangan sampai tampil di QR
 
@@ -71,6 +77,12 @@ Tulis ""
 Tulis "[1/3] Cadangan sebelum sesi ..." Cyan
 & $python backup_db.py
 if ($LASTEXITCODE -ne 0) { Tulis "  Cadangan gagal (lihat pesan di atas). Web tetap dinyalakan." Yellow }
+
+# ---------- struktur database: selalu disamakan dengan kode terbaru (aman dijalankan berulang) ----------
+Tulis ""
+Tulis "      Memeriksa struktur database ..." Cyan
+& $python -m alembic upgrade head
+if ($LASTEXITCODE -ne 0) { Berhenti "Migrasi database gagal (pesan di atas). Web tidak dinyalakan agar data tidak rusak. Pulihkan dari folder backups bila perlu." }
 
 # ---------- cegah laptop tidur ----------
 try {

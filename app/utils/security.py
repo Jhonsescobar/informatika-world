@@ -10,6 +10,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 # Mengimpor CryptContext dari passlib untuk hashing password
 
+import hashlib
+import hmac
+
 from app.config import SECRET_KEY
 # Mengimpor kunci rahasia dari file .env
 
@@ -38,6 +41,21 @@ def sidik(hash_rahasia: str) -> str:
     # cap berubah dan semua token lama otomatis tidak berlaku (perangkat lain ikut keluar).
     import hashlib
     return hashlib.sha256((hash_rahasia or "").encode()).hexdigest()[:16]
+
+def tanda_siswa(student_id: int) -> str:
+    """Tanda tangan id siswa untuk tautan halaman PIN: id berurutan tidak bisa ditebak untuk mengintip nama siswa."""
+    return hmac.new(SECRET_KEY.encode(), f"pin-siswa:{int(student_id)}".encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def tanda_siswa_sah(student_id, tanda) -> bool:
+    if not str(student_id or "").isdigit() or not tanda:
+        return False
+    return hmac.compare_digest(tanda_siswa(int(student_id)), str(tanda))
+
+
+def url_pin(student_id: int, tambahan: str = "") -> str:
+    return f"/student/verify?student_id={int(student_id)}&t={tanda_siswa(student_id)}{tambahan}"
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     # Fungsi untuk membuat karcis digital (JWT)

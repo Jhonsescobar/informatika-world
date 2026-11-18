@@ -1,46 +1,57 @@
 {% extends "layouts/teacher.html" %}
 {% from "layouts/icons.html" import icon %}
 {% set active = 'exams' %}
-{% block title %}Analitik {{ exam.title }} · Informatika World{% endblock %}
+{% block title %}Analisis soal {{ exam.title|e }} · Informatika World{% endblock %}
 {% block back %}<a href="/teacher/exams/{{ exam.id }}/results" class="back-link">{{ icon('arrow-left') }}Hasil ujian</a>{% endblock %}
-{% block eyebrow %}Analitik soal{% endblock %}
-{% block heading %}{{ exam.title }}{% endblock %}
+{% block eyebrow %}Analisis butir soal{% endblock %}
+{% block heading %}{{ exam.title|e }}{% endblock %}
+{% block lead %}<p class="lead">Tiap soal dinilai dari jawaban siswa di ujian ini (satu sesi terbaik per siswa). Soal yang butuh perhatian ada di atas.</p>{% endblock %}
 {% block content %}
-{% if not analytics %}
-<div class="empty"><strong>Belum ada data</strong>Analitik muncul setelah ada siswa yang menyelesaikan ujian ini.</div>
+{% if not analisis %}
+<div class="empty"><strong>Belum ada data</strong>Analisis muncul setelah ada siswa yang menyelesaikan ujian ini.</div>
 {% else %}
 <div class="stack">
   <div class="grid gap-4 grid-cols-2 lg:grid-cols-4">
-    <div class="panel stat stat-light"><span class="stat-label">Rata-rata</span><span class="stat-value">{{ analytics.avg_score }}</span></div>
-    <div class="panel stat"><span class="stat-label">Siswa</span><span class="stat-value">{{ analytics.total_students }}</span></div>
-    <div class="panel stat"><span class="stat-label">Tertinggi</span><span class="stat-value" style="color:var(--ok)">{{ analytics.highest_score }}</span></div>
-    <div class="panel stat"><span class="stat-label">Terendah</span><span class="stat-value" style="color:var(--danger)">{{ analytics.lowest_score }}</span></div>
+    <div class="panel stat stat-light"><span class="stat-label">Rata-rata</span><span class="stat-value">{{ analisis.rata }}</span></div>
+    <div class="panel stat"><span class="stat-label">Siswa</span><span class="stat-value">{{ analisis.siswa }}</span></div>
+    <div class="panel stat"><span class="stat-label">Tertinggi</span><span class="stat-value" style="color:var(--ok)">{{ analisis.tertinggi }}</span></div>
+    <div class="panel stat"><span class="stat-label">Terendah</span><span class="stat-value" style="color:var(--danger)">{{ analisis.terendah }}</span></div>
   </div>
 
-  <section class="panel" aria-labelledby="judul-sulit">
-    <div class="panel-head">
-      <div>
-        <h2 class="h-section" id="judul-sulit">Soal paling sering salah</h2>
-        <p class="panel-note">Tiga soal teratas. Bahas ulang di kelas.</p>
-      </div>
+  <div class="flex flex-wrap items-center gap-2" aria-label="Ringkasan label">
+    {% for kunci in analisis.urutan_label if analisis.ringkas.get(kunci) %}
+    <span class="chip chip-{{ analisis.label[kunci][1] }}">{{ analisis.label[kunci][0] }} · {{ analisis.ringkas[kunci] }}</span>
+    {% endfor %}
+  </div>
+  {% if analisis.siswa < 5 %}<div class="notice notice-amber">{{ icon('info') }}<span>Baru {{ analisis.siswa }} siswa yang selesai. Angka masih goyah; label lengkap muncul mulai 5 siswa.</span></div>{% endif %}
+  {% if not analisis.pembeda_dihitung %}<div class="notice">{{ icon('info') }}<span>Daya pembeda dihitung mulai 6 siswa.</span></div>{% endif %}
+
+  {% for b in analisis.butir %}
+  <article class="panel" aria-label="Soal {{ b.no }}">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <p class="q-num">Soal {{ b.no }}{% if b.esai %} · esai{% endif %}</p>
+      <span class="chip chip-{{ b.nada }}">{{ b.nama }}</span>
     </div>
-    <div class="flex flex-col gap-6">
-      {% for q in analytics.hardest_questions %}
-      <article>
-        <p class="q-num">#{{ loop.index }}</p>
-        <div class="mt-1 font-semibold text-white q-isi">{{ q.text|soal }}</div>
-        <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-          <span style="color:var(--danger)">{{ q.wrong }} salah</span>
-          <span style="color:var(--ok)">{{ q.correct }} benar</span>
-          <span class="ml-auto mono" style="color:var(--amber)">{{ q.error_rate }}% salah</span>
-        </div>
-        <div class="meter mt-3" role="img" aria-label="{{ q.error_rate }} persen siswa salah"><span style="width: {{ q.error_rate }}%"></span></div>
-      </article>
-      {% else %}
-      <p class="muted">Tidak ada data kesalahan.</p>
+    <div class="mt-1 font-semibold text-white q-isi">{{ b.soal.text|soal }}</div>
+    <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+      <span class="mono" style="color:var(--ok)">{{ b.p }}% menjawab benar</span>
+      <span class="dim">{{ b.n }} siswa</span>
+      {% if b.d is not none %}<span class="dim" title="Selisih benar antara kelompok nilai atas dan bawah">Daya pembeda {{ '%+.2f'|format(b.d) }}</span>{% endif %}
+    </div>
+    <div class="meter mt-3" role="img" aria-label="{{ b.p }} persen benar"><span style="width: {{ b.p }}%; background:var(--teal)"></span></div>
+    {% if b.opsi %}
+    <div class="butir-opsi mt-4">
+      {% for o in b.opsi %}
+      <span class="{{ 'opsi-benar' if o.benar else ('opsi-jebakan' if o.jebakan else '') }}">{% if o.benar %}<span class="ikon-kecil">{{ icon('check') }}</span> {% endif %}{{ o.teks|e }}</span>
+      <span class="mono dim">{{ o.jumlah }} · {{ o.persen }}%</span>
+      <div class="meter"><span style="width: {{ o.persen }}%; {% if o.benar %}background:var(--teal){% elif o.jebakan %}background:var(--amber){% else %}background:var(--dim){% endif %}"></span></div>
       {% endfor %}
+      {% if b.kosong %}<span class="dim">Tidak menjawab</span><span class="mono dim">{{ b.kosong }}</span>{% endif %}
     </div>
-  </section>
+    {% endif %}
+    <p class="mt-4 text-sm muted">{{ b.saran }}</p>
+  </article>
+  {% endfor %}
 </div>
 {% endif %}
 {% endblock %}

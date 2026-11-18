@@ -46,6 +46,7 @@ def test_tutup_sebelum_mulai_ditolak(guru, db, data):
 
 
 def test_jadwal_mulai_tampil(guru, db, data, masuk_siswa):
+    guru.post("/teacher/kelas", data={"kelas": "VII"})
     mid = buat(db, data)
     r = guru.post(f"/teacher/materials/{mid}/visibility", data={"action": "open", "open_at": waktu(60), "close_at": waktu(120)})
     assert r.headers["location"].endswith("pesan=terjadwal")
@@ -62,6 +63,7 @@ def test_jadwal_mulai_tampil(guru, db, data, masuk_siswa):
 
 
 def test_materi_lewat_bisa_dibuka_lagi(guru, db, data, masuk_siswa):
+    guru.post("/teacher/kelas", data={"kelas": "VII"})
     from datetime import timezone
     mid = buat(db, data, is_published=True, close_at=datetime.now(timezone.utc) - timedelta(hours=1))
     assert "Sudah ditutup otomatis" in guru.get("/teacher/materials").text

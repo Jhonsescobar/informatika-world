@@ -13,6 +13,7 @@ class AcademicYear(Base):
     id = Column(Integer, primary_key=True, index=True)
     year_name = Column(String, unique=True, nullable=False)
     is_active = Column(Integer, default=1)
+    kkm = Column(Integer, nullable=False, default=75)   # KKM akhir (nilai akhir >= ini dinyatakan tuntas)
 
 class SchoolClass(Base):
     __tablename__ = "classes"
@@ -41,4 +42,4 @@ class Enrollment(Base):
 
     # Relationship untuk akses data terkait
     student = relationship("Student", back_populates="enrollments")
-    rombel = relationship("Rombel")
+    rombel = relationship("Rombel")

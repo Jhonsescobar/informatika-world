@@ -1,0 +1,50 @@
+{% extends "layouts/student.html" %}
+{% from "layouts/icons.html" import icon %}
+{% from "layouts/grafik.html" import grafik %}
+{% block title %}Progres · Informatika World{% endblock %}
+{% block eyebrow %}Progres{% endblock %}
+{% block heading %}Nilai <em>ujianmu</em>{% endblock %}
+{% block lead %}<p class="lead">Nilai tertinggi di tiap ujian, urut dari yang pertama kamu kerjakan. Garis putus-putus kuning adalah batas tuntas (KKM).</p>{% endblock %}
+{% block content %}
+{% if not riwayat.titik %}
+<div class="empty"><strong>Belum ada nilai</strong>Selesaikan satu ujian dan grafikmu mulai tumbuh di sini.</div>
+{% else %}
+<div class="stack">
+  <section class="panel panel-accent tren-{{ riwayat.tren }}" aria-label="Tren terakhir">
+    <div class="tren">
+      <span class="tren-ikon" aria-hidden="true">
+        {% if riwayat.tren == 'naik' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+        {% elif riwayat.tren == 'turun' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/></svg>
+        {% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M15 7l5 5-5 5"/></svg>{% endif %}
+      </span>
+      <div><p class="tren-judul">{{ judul_tren }}</p><p class="tren-isi">{{ kalimat_tren }}</p></div>
+    </div>
+    <div class="mini-stat">
+      <div><b>{{ riwayat.rata|round|int }}</b><span>Rata-rata</span></div>
+      <div><b>{{ riwayat.terbaik|round|int }}</b><span>Terbaik</span></div>
+      <div><b>{{ riwayat.tuntas }}/{{ riwayat.titik|length }}</b><span>Tuntas</span></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Grafik nilai">
+    {{ grafik(g, 'Grafik nilai ujianmu') }}
+    <div class="legenda"><span><i></i>Nilaimu</span><span><i class="kkm"></i>KKM</span><span>Angka di bawah grafik = urutan ujian</span></div>
+  </section>
+
+  <section class="panel panel-tight" aria-label="Daftar ujian">
+    <ol class="rows">
+      {% for t in riwayat.titik %}
+      <li class="row">
+        <span class="mono w-8 text-sm dim">{{ loop.index }}</span>
+        <span class="row-main"><span class="font-semibold text-white">{{ t.judul|e }}</span>
+          {% if t.waktu %}<span class="block text-xs dim">{{ t.waktu.astimezone().strftime('%d/%m/%Y') }}</span>{% endif %}</span>
+        {% if t.selisih is not none %}<span class="delta delta-{{ t.arah }}">{{ '▲' if t.arah == 'naik' else ('▼' if t.arah == 'turun' else '■') }} {{ t.selisih|abs|round|int }}</span>{% endif %}
+        <span class="chip {{ 'chip-teal' if t.tuntas else 'chip-danger' }}">{{ t.nilai|round|int }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% if riwayat.belum %}<p class="text-xs dim">{{ riwayat.belum }} ujian lain belum kamu kerjakan, jadi belum muncul di grafik.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

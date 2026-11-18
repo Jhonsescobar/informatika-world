@@ -1,0 +1,17 @@
+48c743a10abdb64e3ac9df531c84ee16  PROGRES.md
+2b82efe5a654119b2e4e112fcbc7275e  app/services/excel.py
+3f322eae8c3beb84ec06ca2f5997c913  app/services/rekap.py
+150b6f857a0f3366d8fb08574080bb7f  app/routers/teacher.py
+894c730fdfa9f88f8e7e9ed7923c00f3  app/routers/student.py
+f2bccb33bec4e9f4c9e78d38f2e352c5  app/models/grade.py
+44cdf531126cbc272359ad70f254140f  app/models/exam.py
+ff2267c49faf896f0bdd5e17aedca8b7  app/models/academic.py
+aa627e4f293429161c1e2fa2f3d7ee0e  app/templates/teacher/exams.html
+1dc305fce0d0fdbf58b2b51c298981f3  app/templates/teacher/exam_results.html
+afe84ccc93f22473b7d505f2b7052c5c  app/templates/teacher/grades.html
+4c5b559bd4ef19bab361c0960cc4c911  app/templates/student/dashboard.html
+7aeebb3d2fc4f75bcdd9ff96de7347ba  app/templates/student/exam_result.html
+bfbb4058f5a2d87b8841d2419424151a  app/static/css/iw.css
+a76e0157f0e2514c3ca9cb884c0fcec7  tests/test_kkm.py
+d34f9b6ead626cb0e929b991551244e7  migrations/versions/e5a1c9d3b7f2_kkm_bertingkat.py
+40dae44a7c8fe2ddcd3203cc1fc76455  app/static/js/iw-peri.js

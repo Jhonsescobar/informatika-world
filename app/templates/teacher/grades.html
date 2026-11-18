@@ -12,9 +12,14 @@
   <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Total bobot Kelas {{ request.query_params.get('kelas', '')|e }} tidak boleh lebih dari 100%. Sisa bobot yang masih bisa dipakai: {{ request.query_params.get('sisa', '0')|int }}%.</span></div>
   {% elif error == 'isian' %}
   <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Isian belum lengkap: nama wajib diisi, bobot 1–100.</span></div>
+  {% elif error == 'kkm' %}
+  <div class="notice notice-amber" role="alert">{{ icon('info') }}<span>KKM harus angka 0–100, atau dikosongkan agar ikut KKM tahun ajaran.</span></div>
+  {% endif %}
+  {% if pesan == 'kkm' %}
+  <div class="notice" role="status">{{ icon('check') }}<span>KKM komponen disimpan. Nilai akhir tidak berubah.</span></div>
   {% endif %}
   <section class="grid gap-4 sm:grid-cols-3" aria-label="Rekap per kelas">
-    {% for kelas in ['VII', 'VIII', 'IX'] %}
+    {% for kelas in [kelas_aktif(request)] %}
     {% set total = components|selectattr('class_target', 'equalto', kelas)|sum(attribute='weight') %}
     <a href="/teacher/grades/class/{{ kelas }}" class="panel stat group" style="text-decoration:none">
       <span class="flex items-center justify-between">
@@ -40,6 +45,11 @@
               {% if jumlah_ujian.get(comp.id) %}<span class="chip chip-teal">{{ jumlah_ujian[comp.id] }} ujian</span>{% else %}<span class="chip chip-amber">belum ada ujian</span>{% endif %}</p>
           </div>
           <span class="mono text-lg text-white">{{ comp.weight }}%</span>
+          <span class="chip">KKM {{ comp.kkm if comp.kkm is not none else kkm_tahun }}{% if comp.kkm is none %} · dari tahun ajaran{% endif %}</span>
+          <form action="/teacher/grades/components/{{ comp.id }}/kkm" method="POST" class="flex items-center gap-2">
+            <input type="number" name="kkm" min="0" max="100" value="{{ comp.kkm if comp.kkm is not none else '' }}" placeholder="KKM" class="input" style="width:84px;min-height:34px;padding:4px 8px;font-size:13px" aria-label="KKM komponen {{ comp.name|e }}">
+            <button type="submit" class="link-action is-teal">Simpan KKM</button>
+          </form>
           <form action="/teacher/grades/components/{{ comp.id }}/delete" method="POST" onsubmit="return confirm('Hapus komponen ini? Ujian di dalamnya TIDAK terhapus, hanya dilepas dari komponen.');">
             <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
           </form>
@@ -56,15 +66,16 @@
         <label class="field"><span class="label">Nama</span>
           <input type="text" name="name" required class="input" placeholder="cth: Formatif 1"></label>
         <div class="grid grid-cols-2 gap-3">
-          <label class="field"><span class="label">Kelas</span>
-            <select name="class_target" required class="select">
-              <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
-            </select></label>
+          <div class="field"><span class="label">Kelas</span>
+            <input type="hidden" name="class_target" value="{{ kelas_aktif(request) }}">
+            <p class="kelas-tetap">Kelas {{ kelas_aktif(request) }}</p></div>
           <label class="field"><span class="label">Bobot %</span>
             <input type="number" name="weight" min="1" max="100" required class="input"></label>
         </div>
+        <label class="field"><span class="label">KKM komponen (opsional)</span>
+          <input type="number" name="kkm" min="0" max="100" class="input" placeholder="Kosong = ikut KKM tahun ajaran ({{ kkm_tahun }})"></label>
         <button type="submit" class="btn btn-primary mt-1">Tambah</button>
-        <p class="text-xs dim">Setelah komponen dibuat, pilih komponen ini saat membuat ujian. Komponen tanpa ujian tidak ikut dihitung.</p>
+        <p class="text-xs dim">Komponen baru bisa dipilih saat membuat ujian. Komponen tanpa ujian tidak ikut dihitung.</p>
       </form>
     </section>
   </div>

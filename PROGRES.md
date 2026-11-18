@@ -132,3 +132,30 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - [x] three.js, Tailwind (build), dan font disimpan di `app/static`: web jalan tanpa internet
 - [x] 114 uji otomatis (`python -m pytest -q`): nilai, keamanan, akun, ekspor, esai, fitur kelas
 - [ ] Hapus isi `_to_delete/` dan folder kosong `app/templates/components/`
+
+## KKM bertingkat dan rapi tampilan (migrasi e5a1c9d3b7f2)
+- [x] KKM tahun ajaran (default 75), KKM komponen, KKM ujian (penanda tuntas saja, tidak mengubah nilai akhir)
+- [x] Urutan: KKM ujian → KKM komponen → KKM tahun ajaran; remedial tetap 60 global
+- [x] Siswa melihat "Tuntas" / "Belum tuntas" tanpa angka KKM
+- [x] Excel: header KKM akhir, nama kolom komponen memuat KKM, warna merah di bawah KKM
+- [x] Uji `tests/test_kkm.py` (14 uji); pytest penuh 179 lulus
+- [x] E2E lulus: kunci, poin massal, impor, tempel, esai, baru, rekap
+- [ ] `simulasi_kelas.js` belum dijalankan (butuh data demo yang tidak ada di harness reset)
+- [ ] Pasang ke laptop (md5 + migrasi)
+- [x] Peri di beranda siswa (`js/iw-peri.js`, gaya di `iw.css`): bisa diseret, ketuk = kilau, posisi diingat per tab, tidak ada di halaman ujian, patuh "kurangi gerakan"
+- [x] Peri: ketuk 2x = melonjak; ketuk 3x cepat = jongkok, terbang melengkung keluar layar dengan jejak kilau, muncul lagi di tempat acak (patuh "kurangi gerakan"); seretan pendek tidak dihitung ketukan (ambang 8 px)
+- [x] Daftar ujian guru dirapikan (chip pengaturan seragam, KKM diklik untuk ubah); tabel hasil: warna merah/hijau menggantikan tulisan "Belum tuntas"
+- [x] Kelas aktif di sidebar guru (cookie `iw_kelas`, awal VIII): Materi, Bank soal, Ujian, Nilai, Siswa mengikuti pilihan; form tidak lagi memilih kelas; tujuan pindah rombel tetap lintas kelas
+
+## Ekspor per rombel, keamanan, pemasangan (18 Nov 2026)
+- Ekspor hasil ujian: lembar "Ringkasan" + satu lembar per rombel (VIII.1, VIII.2, ...), urut alami.
+- Keamanan: tautan halaman PIN siswa bertanda tangan (id berurutan tak bisa dipakai mengintip nama); tolak POST/PUT/PATCH/DELETE bila Origin/Referer dari situs lain; HSTS bila https.
+- Pemasangan: ONLINE.bat menjalankan `alembic upgrade head` otomatis dan menunggu port 8000 bebas; UPDATE.bat memasang paket rilis (cadangan, cek SHA-256, migrasi, uji cepat, kembalikan kode lama bila gagal). Paket dibuat dengan `buat_rilis.py`.
+
+## Analisis butir, remedial, grafik, rapor (18 Nov 2026)
+- Analisis butir soal (`services/analisis.py`, halaman `/teacher/exams/{id}/analytics`): tingkat kesukaran, daya pembeda, sebaran pilihan, label (periksa kunci, menjebak, terlalu sulit/mudah, pembeda lemah, baik). Hanya jawaban ujian itu, satu sesi terbaik per siswa. Menggantikan analitik lama yang mencampur ujian dengan bank sama.
+- Remedial: panel "Perlu remedial" di hasil ujian, tombol beri remedial ke semua, unduh daftar Excel (`services/remedial.py`).
+- Grafik perkembangan: siswa `/student/progress` (menu Progres, kartu tren di beranda), guru `/teacher/students/{id}/progress` (dengan garis rata-rata rombel). Bentuk grafik dihitung di `services/perkembangan.py`, digambar SVG di `layouts/grafik.html`.
+- Rapor cetak: `/teacher/grades/class/{kelas}/rapor` (?rombel=, ?siswa=), satu halaman A4 per siswa, simpan PDF lewat dialog cetak.
+- Rute baru ada di `routers/teacher_analisis.py` (awal pemisahan teacher.py). `tingkat_siswa` pindah ke `services/rekap.py`.
+- Cadangan ke Google Drive: isi `BACKUP_COPY_DIR` di .env dengan folder Google Drive for Desktop (sudah didukung `backup_db.py`).

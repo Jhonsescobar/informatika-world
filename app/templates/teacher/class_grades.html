@@ -8,7 +8,7 @@
 {% block heading %}Kelas <em>{{ class_target }}</em>{% endblock %}
 {% block lead %}
 <p class="lead">{% if rekap.pakai_bobot %}Nilai akhir dari bobot komponen{% else %}Belum ada komponen berisi ujian, jadi nilai akhir = rata-rata semua ujian{% endif %}. Ujian yang belum dikerjakan dihitung 0. Batas tuntas {{ kkm }}.</p>
-<div class="head-actions"><a href="/teacher/grades/class/{{ class_target }}/export?urut={{ urut }}" class="btn btn-primary">{{ icon('download') }}Ekspor Excel</a></div>
+<div class="head-actions"><a href="/teacher/grades/class/{{ class_target }}/export?urut={{ urut }}" class="btn btn-primary">{{ icon('download') }}Ekspor Excel</a><a href="/teacher/grades/class/{{ class_target }}/rapor?{{ ('rombel=' ~ rombel) if rombel }}" class="btn btn-ghost" target="_blank" rel="noopener">{{ icon('printer') }}Cetak rapor{% if rombel %} rombel ini{% endif %}</a></div>
 {% endblock %}
 {% block content %}
 <div class="stack">
@@ -48,7 +48,7 @@
         {% for b in rekap.baris %}
         <tr>
           <td class="num dim hidden sm:table-cell">{{ loop.index }}</td>
-          <td class="text-white">{{ b.siswa.name|e }}{% if b.belum %} <span class="chip chip-amber ml-1" title="Ujian yang belum dikerjakan dihitung 0">{{ b.belum }} belum</span>{% endif %}</td>
+          <td class="text-white"><a href="/teacher/students/{{ b.siswa.id }}/progress" class="hover:underline" title="Lihat grafik perkembangan">{{ b.siswa.name|e }}</a>{% if b.belum %} <span class="chip chip-amber ml-1" title="Ujian yang belum dikerjakan dihitung 0">{{ b.belum }} belum</span>{% endif %}</td>
           <td class="dim hidden md:table-cell">{{ b.rombel|e }}</td>
           {% if rekap.pakai_bobot %}
             {% for k in rekap.komponen if rekap.per_komponen[k.id] %}<td class="num mono hidden sm:table-cell">{{ b.komponen[k.id] }}</td>{% endfor %}

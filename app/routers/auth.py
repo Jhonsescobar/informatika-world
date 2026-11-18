@@ -17,7 +17,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.utils.security import verify_password, create_access_token, sidik, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.utils.security import verify_password, create_access_token, sidik, ACCESS_TOKEN_EXPIRE_MINUTES, tanda_siswa, tanda_siswa_sah, url_pin
 from app.models.user import User
 from app.models.student import Student
 from app.utils.deps import require_teacher, require_student
@@ -122,19 +122,21 @@ async def search_student(name: str, request: Request, db: Session = Depends(get_
         .limit(10)                                     # maksimal 10 nama (dulu 5, dinaikkan karena 1 huruf bisa cocok banyak nama)
         .all()
     )
-    results = [{"id": s.id, "name": s.name} for s in students]  # kirim sebagai JSON
+    results = [{"id": s.id, "name": s.name, "t": tanda_siswa(s.id)} for s in students]  # kirim sebagai JSON
     return results
 
 # Halaman PIN (langkah ke-2 login siswa): siswa sudah memilih nama, sekarang isi PIN
 # Nama siswa dikirim ke template agar halaman PIN bisa menyapa
 @router.get("/student/verify", response_class=HTMLResponse)
-async def student_verify_page(request: Request, student_id: int, db: Session = Depends(get_db)):
+async def student_verify_page(request: Request, student_id: int, t: str = "", db: Session = Depends(get_db)):
+    if not tanda_siswa_sah(student_id, t):             # tautan harus berasal dari pencarian nama (id berurutan tidak bisa diintip)
+        return RedirectResponse(url="/login/siswa", status_code=303)
     student = db.query(Student).filter(Student.id == student_id).first()   # ambil data siswa dari database
     if not student or not student.is_active:           # tidak ditemukan / nonaktif
         return RedirectResponse(url="/login/siswa", status_code=303)       # -> balik ke halaman cari nama
     template = templates_env.get_template("student/verify_pin.html")
     # student_name dikirim agar halaman PIN bisa menampilkan "Halo, Andi Pratama!"
-    html_content = template.render(request=request, student_id=student_id, student_name=student.name)
+    html_content = template.render(request=request, student_id=student_id, student_name=student.name, tanda=t)
     return HTMLResponse(content=html_content)
 
 # POST verifikasi PIN
@@ -146,12 +148,12 @@ async def verify_student_pin(request: Request, db: Session = Depends(get_db)):
 
     if not str(student_id or "").isdigit():           # id dari form berupa teks: pastikan angka
         return RedirectResponse(url="/login/siswa", status_code=303)
-    kembali = f"/student/verify?student_id={int(student_id)}"
+    kembali = url_pin(int(student_id))
     kunci = f"siswa:{int(student_id)}"
     kunci_ip = "pin-ip:" + ratelimit.ip_klien(request)
     # satu perangkat yang mencoba PIN banyak siswa sekaligus ikut dikunci
     if ratelimit.jumlah_gagal(kunci_ip) >= BATAS_PIN_SALAH_PER_PERANGKAT:
-        return RedirectResponse(url=f"/student/verify?student_id={int(student_id)}&error=terkunci", status_code=303)
+        return RedirectResponse(url=url_pin(int(student_id), "&error=terkunci"), status_code=303)
     if ratelimit.sisa_kunci_detik(kunci):              # 5x salah dalam 10 menit: PIN dikunci sementara
         return RedirectResponse(url=kembali + "&error=terkunci", status_code=303)
     student = db.query(Student).filter(Student.id == int(student_id)).first()   # cari siswa berdasarkan id

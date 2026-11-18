@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapor Informatika Kelas {{ nama_rombel or kelas }}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e8ecef; color: #111; font: 13px/1.5 "Segoe UI", Arial, sans-serif; }
+  .bar { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #0f766e; color: #fff; }
+  .bar a, .bar button { color: #fff; background: rgba(255,255,255,.16); border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .halaman { width: 210mm; min-height: 297mm; margin: 16px auto; padding: 18mm 16mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.15); page-break-after: always; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+  .sub { margin: 2px 0 0; color: #555; }
+  .identitas { display: grid; grid-template-columns: 120px 1fr; gap: 2px 8px; margin: 16px 0; padding: 12px 0; border-block: 2px solid #0f766e; }
+  .identitas b { font-weight: 600; color: #444; }
+  h2 { margin: 18px 0 6px; font-size: 14px; color: #0f766e; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #c9d2d6; padding: 6px 8px; text-align: left; }
+  th { background: #eef6f5; font-weight: 600; }
+  td.n, th.n { text-align: center; width: 90px; }
+  .rendah { color: #b91c1c; font-weight: 700; }
+  .akhir { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border: 2px solid #0f766e; border-radius: 10px; }
+  .akhir strong { font-size: 28px; }
+  .tuntas { color: #0f766e; font-weight: 700; } .belum { color: #b91c1c; font-weight: 700; }
+  .ttd { margin-top: 36px; display: flex; justify-content: flex-end; }
+  .ttd div { width: 220px; text-align: center; } .ttd .garis { height: 64px; }
+  .kosong { padding: 60px 0; text-align: center; color: #666; }
+  @media print { body { background: #fff; } .bar { display: none; } .halaman { margin: 0; box-shadow: none; width: auto; min-height: 0; padding: 0; } @page { size: A4; margin: 16mm; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <button type="button" onclick="window.print()">Cetak / simpan PDF</button>
+  <a href="/teacher/grades/class/{{ kelas }}">Kembali</a>
+  <span>{{ rekap.baris|length }} rapor · pilih "Simpan sebagai PDF" di jendela cetak</span>
+</div>
+{% for b in rekap.baris %}
+<section class="halaman">
+  <h1>RAPOR INFORMATIKA</h1>
+  <p class="sub">Tahun ajaran {{ rekap.tahun.year_name|e if rekap.tahun else '-' }}</p>
+  <div class="identitas">
+    <b>Nama</b><span>{{ b.siswa.name|e }}</span>
+    <b>NIPD</b><span>{{ (b.siswa.nipd or '-')|e }}</span>
+    <b>Kelas / rombel</b><span>{{ kelas }} / {{ b.rombel|e }}</span>
+  </div>
+
+  {% if rekap.pakai_bobot %}
+  <h2>Nilai per komponen</h2>
+  <table>
+    <thead><tr><th>Komponen</th><th class="n">Bobot</th><th class="n">KKM</th><th class="n">Nilai</th></tr></thead>
+    <tbody>
+      {% for k in rekap.komponen if rekap.per_komponen[k.id] %}
+      <tr><td>{{ k.name|e }}</td><td class="n">{{ k.weight }}%</td><td class="n">{{ rekap.kkm_komponen[k.id] }}</td>
+        <td class="n {{ 'rendah' if b.komponen[k.id] is not none and b.komponen[k.id] < rekap.kkm_komponen[k.id] }}">{{ b.komponen[k.id] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>Nilai per ujian</h2>
+  <table>
+    <thead><tr><th>Ujian</th><th class="n">KKM</th><th class="n">Nilai</th></tr></thead>
+    <tbody>
+      {% for e in rekap.ujian %}
+      <tr><td>{{ e.title|e }}</td><td class="n">{{ rekap.kkm_ujian[e.id] }}</td>
+        <td class="n {{ 'rendah' if b.ujian[e.id] is not none and b.ujian[e.id] < rekap.kkm_ujian[e.id] }}">{{ b.ujian[e.id] if b.ujian[e.id] is not none else 'belum' }}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="kosong">Belum ada ujian.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="akhir">
+    <span>Nilai akhir (KKM {{ rekap.kkm_akhir }})</span>
+    <strong>{{ b.akhir if b.akhir is not none else '-' }}</strong>
+    <span class="{{ 'tuntas' if b.tuntas else 'belum' }}">{{ 'TUNTAS' if b.tuntas else 'BELUM TUNTAS' }}</span>
+  </div>
+  {% if b.belum %}<p class="sub">Catatan: {{ b.belum }} ujian belum dikerjakan dan dihitung 0.</p>{% endif %}
+
+  <div class="ttd"><div>{{ dicetak.strftime('%d/%m/%Y') }}<br>Guru Informatika<div class="garis"></div>(............................)</div></div>
+</section>
+{% else %}
+<section class="halaman"><p class="kosong">Tidak ada siswa untuk dicetak.</p></section>
+{% endfor %}
+</body>
+</html>

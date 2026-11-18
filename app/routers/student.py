@@ -17,7 +17,8 @@ from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
 from app.services.penilaian import (id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM,
                                     kunci_pilihan, terapkan_kunci, KUNCI_JAWABAN, TOLERANSI_KUNCI)
-from app.services.rekap import rekap_kelas, BATAS_REMEDIAL as BATAS_REMEDIAL_REKAP
+from app.services.rekap import rekap_kelas, status_ujian, tingkat_siswa, BATAS_REMEDIAL
+from app.services.perkembangan import riwayat_siswa, bentuk_grafik, pesan_semangat
 from app.services.esai import nilai_esai
 import json
 from app.models.material import Material
@@ -55,20 +56,7 @@ def sesi_milik(db: Session, session_id: int, student_id: int):
     return db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.student_id == student_id).first()
 
 
-BATAS_REMEDIAL = 60      # nilai (persen) di bawah ini boleh mengajukan remedial
 MAKS_PELANGGARAN = 3     # keluar dari layar ujian sebanyak ini: jawaban dikirim otomatis
-
-
-def tingkat_siswa(db: Session, student_id: int):
-    # Tingkat (VII/VIII/IX) dari rombel siswa di tahun ajaran aktif; None jika belum punya rombel
-    q = (db.query(SchoolClass.class_name)
-         .join(Rombel, Rombel.class_id == SchoolClass.id)
-         .join(Enrollment, Enrollment.rombel_id == Rombel.id)
-         .outerjoin(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
-         .filter(Enrollment.student_id == student_id)
-         .order_by(AcademicYear.is_active.desc(), Enrollment.id.desc()))
-    baris = q.first()
-    return baris[0] if baris else None
 
 
 def persen_nilai(db: Session, sesi, exam):
@@ -102,10 +90,29 @@ async def student_dashboard(request: Request, db: Session = Depends(get_db), use
         template = templates_env.get_template("student/dashboard.html")
         html_content = template.render(request=request, exams=exams, student_id=student_id, selesai=selesai,
                                        remedial=remedial, tingkat=tingkat, materi=materi_terbuka(db, tingkat),
+                                       riwayat=riwayat_siswa(db, student_id),
                                        student_name=student.name if student else "", user=user, active_page="home")
         return HTMLResponse(content=html_content)
     except Exception:
         return gagal("Dashboard siswa", "/login")
+
+# --- PERKEMBANGAN: grafik nilai ujian naik/turun ---
+@router.get("/progress", response_class=HTMLResponse)
+async def progress_page(request: Request, db: Session = Depends(get_db), user=Depends(require_student)):
+    try:
+        student_id = int(user.get("sub"))
+        student = db.query(Student).filter(Student.id == student_id).first()
+        riwayat = riwayat_siswa(db, student_id)
+        terakhir = riwayat["titik"][-1] if riwayat["titik"] else None
+        judul, kalimat = pesan_semangat(riwayat["tren"], riwayat["selisih"], bool(terakhir and terakhir["tuntas"]))
+        template = templates_env.get_template("student/progress.html")
+        return HTMLResponse(content=template.render(
+            request=request, riwayat=riwayat, judul_tren=judul, kalimat_tren=kalimat, user=user, active_page="progress",
+            g=bentuk_grafik(riwayat["titik"]) if riwayat["titik"] else None,
+            student_name=student.name if student else ""))
+    except Exception:
+        return gagal("Perkembangan siswa")
+
 
 # --- MULAI UJIAN ---
 @router.post("/exam/start")
@@ -290,10 +297,12 @@ async def exam_result(session_id: int, request: Request, db: Session = Depends(g
         persen = persen_nilai(db, session, exam)
         boleh_ajukan = (terakhir and session.status != "active" and persen < BATAS_REMEDIAL
                         and not (permintaan and permintaan.status in ("pending", "approved")))
+        # Siswa hanya melihat "Tuntas" / "Belum tuntas", tanpa angka KKM
+        tuntas = status_ujian(db, exam, student_id)["tuntas"]
         template = templates_env.get_template("student/exam_result.html")
         html_content = template.render(request=request, session=session, answers=answers, exam=exam, persen=persen,
                                        batas=BATAS_REMEDIAL, terakhir=terakhir, permintaan=permintaan,
-                                       boleh_ajukan=boleh_ajukan)
+                                       boleh_ajukan=boleh_ajukan, tuntas=tuntas)
         return HTMLResponse(content=html_content)
     except Exception:
         return gagal("Hasil ujian")
@@ -477,4 +486,4 @@ async def achievements_page(request: Request, db: Session = Depends(get_db), use
         )
         return HTMLResponse(content=html_content)
     except Exception as e:
-        return gagal("Lencana")
+        return gagal("Lencana")

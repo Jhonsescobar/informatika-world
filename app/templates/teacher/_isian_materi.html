@@ -1,10 +1,10 @@
 {# Isian materi (tambah & edit). m = materi yang diedit, atau tidak ada saat menambah #}
       <label class="field"><span class="label">Judul</span>
         <input type="text" name="title" required maxlength="200" class="input" value="{{ m.title|e if m else '' }}"></label>
-      <label class="field"><span class="label">Kelas</span>
-        <select name="class_target" required class="select">
-          {% for k in ['VII', 'VIII', 'IX'] %}<option value="{{ k }}" {{ 'selected' if m and m.class_target == k }}>Kelas {{ k }}</option>{% endfor %}
-        </select></label>
+      <div class="field"><span class="label">Kelas</span>
+        {% set kls = m.class_target if m else kelas_aktif(request) %}
+        <input type="hidden" name="class_target" value="{{ kls }}">
+        <p class="kelas-tetap">Kelas {{ kls }}{% if not m %} <span class="dim">· ikut pilihan di sidebar</span>{% endif %}</p></div>
       <label class="field"><span class="label">Deskripsi singkat</span>
         <input type="text" name="description" maxlength="300" class="input" value="{{ (m.description or '')|e if m else '' }}"></label>
       <label class="field"><span class="label">Isi materi</span>

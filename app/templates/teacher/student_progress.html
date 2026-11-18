@@ -1,0 +1,42 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% from "layouts/grafik.html" import grafik %}
+{% set active = 'students' %}
+{% block title %}Perkembangan {{ siswa.name|e }} · Informatika World{% endblock %}
+{% block back %}<a href="/teacher/grades/class/{{ riwayat.kelas or 'VIII' }}" class="back-link">{{ icon('arrow-left') }}Rekap kelas</a>{% endblock %}
+{% block eyebrow %}Perkembangan siswa{% if riwayat.kelas %} · Kelas {{ riwayat.kelas }}{% endif %}{% endblock %}
+{% block heading %}{{ siswa.name|e }}{% endblock %}
+{% block lead %}<p class="lead">Nilai tertinggi siswa di tiap ujian (urut waktu pertama selesai), dibandingkan dengan rata-rata rombelnya.</p>{% endblock %}
+{% block content %}
+{% if not riwayat.titik %}
+<div class="empty"><strong>Belum ada nilai</strong>Siswa ini belum menyelesaikan ujian di tahun ajaran aktif.</div>
+{% else %}
+<div class="stack">
+  <div class="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div class="panel stat stat-light"><span class="stat-label">Rata-rata</span><span class="stat-value">{{ riwayat.rata|round|int }}</span></div>
+    <div class="panel stat"><span class="stat-label">Terbaik</span><span class="stat-value" style="color:var(--ok)">{{ riwayat.terbaik|round|int }}</span></div>
+    <div class="panel stat"><span class="stat-label">Tuntas</span><span class="stat-value">{{ riwayat.tuntas }}/{{ riwayat.titik|length }}</span></div>
+    <div class="panel stat"><span class="stat-label">Tren terakhir</span><span class="stat-value delta-{{ riwayat.tren }}" style="font-size:1.6rem">{{ {'naik': 'Naik', 'turun': 'Turun', 'tetap': 'Stabil', 'baru': '–'}[riwayat.tren] }}{% if riwayat.selisih %} {{ riwayat.selisih|abs|round|int }}{% endif %}</span></div>
+  </div>
+  <section class="panel" aria-label="Grafik nilai">
+    {{ grafik(g, 'Grafik nilai ' ~ siswa.name) }}
+    <div class="legenda"><span><i></i>Siswa ini</span><span><i class="putus"></i>Rata-rata rombel</span><span><i class="kkm"></i>KKM</span></div>
+  </section>
+  <section class="panel panel-tight overflow-x-auto" aria-label="Daftar ujian">
+    <table class="table">
+      <thead><tr><th class="num">#</th><th>Ujian</th><th class="num">Nilai</th><th class="num">Rombel</th><th class="num">Perubahan</th></tr></thead>
+      <tbody>
+        {% for t in riwayat.titik %}
+        <tr>
+          <td class="num dim">{{ loop.index }}</td><td class="text-white">{{ t.judul|e }}</td>
+          <td class="num"><span class="chip {{ 'chip-teal' if t.tuntas else 'chip-danger' }}">{{ t.nilai|round|int }}</span></td>
+          <td class="num mono dim">{{ t.rombel|round|int if t.rombel is not none else '–' }}</td>
+          <td class="num"><span class="delta delta-{{ t.arah }}">{% if t.selisih is not none %}{{ '▲' if t.arah == 'naik' else ('▼' if t.arah == 'turun' else '■') }} {{ t.selisih|abs|round|int }}{% else %}–{% endif %}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endif %}
+{% endblock %}

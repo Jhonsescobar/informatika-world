@@ -10,43 +10,48 @@
   <section class="panel panel-tight" aria-labelledby="judul-daftar">
     <div class="panel-head px-6 pt-6 mb-2">
       <h2 class="h-section" id="judul-daftar">Daftar ujian</h2>
-      <span class="chip">{{ exams|selectattr('is_published')|list|length }} terbit · {{ exams|rejectattr('is_published')|list|length }} draf</span>
+      <span class="chip">Terbit {{ exams|selectattr('is_published')|list|length }} · Draf {{ exams|rejectattr('is_published')|list|length }}</span>
     </div>
     <div class="rows">
       {% for exam in exams %}
-      <article class="row flex-wrap">
-        <div class="row-main">
+      <article class="row uj">
+        <div class="uj-top">
           <p class="row-title">{{ exam.title|e }}</p>
-          <p class="row-meta">
-            {% if exam.is_published %}<span class="chip chip-teal chip-dot">Terbit</span>{% else %}<span class="chip chip-amber chip-dot">Draf</span>{% endif %}
-            <span>Kelas {{ exam.class_target }}</span>
-            {% if exam.component_id and nama_komponen.get(exam.component_id) %}<span class="chip chip-teal">{{ nama_komponen[exam.component_id].name|e }} · {{ nama_komponen[exam.component_id].weight }}%</span>{% else %}<span class="chip chip-amber" title="Ujian ini tidak masuk nilai akhir berbobot">tanpa komponen</span>{% endif %}
-            <span>{{ exam.duration_minutes }} menit</span>
-            {% if exam.question_count %}<span class="chip chip-teal">{{ exam.question_count }} soal acak / siswa</span>{% endif %}
-            {% for jenis, aktif, ya, tidak in [('soal', exam.randomize_questions, 'Soal diacak', 'Soal berurutan'), ('opsi', exam.randomize_options, 'Opsi diacak', 'Opsi tetap')] %}
-            <form action="/teacher/exams/{{ exam.id }}/acak" method="POST" style="display:inline">
-              <input type="hidden" name="jenis" value="{{ jenis }}">
-              <button type="submit" class="chip {{ 'chip-teal' if aktif else 'chip-amber' }}" style="border:0;cursor:pointer" title="Klik untuk {{ 'mematikan' if aktif else 'menyalakan' }} pengacakan">{{ ya if aktif else tidak }} ⇄</button>
-            </form>
-            {% endfor %}
-          </p>
-        </div>
-        <div class="row-actions">
-          {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber chip-dot" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
-          <form action="/teacher/exams/{{ exam.id }}/component" method="POST" class="flex items-center gap-2">
-            <select name="component_id" class="select" style="min-height:34px;padding:4px 30px 4px 10px;font-size:13px;width:auto" aria-label="Komponen nilai {{ exam.title|e }}" onchange="this.form.submit()">
-              <option value="">Tanpa komponen</option>
-              {% for k in komponen if k.class_target == exam.class_target %}<option value="{{ k.id }}" {{ 'selected' if exam.component_id == k.id }}>{{ k.name|e }} ({{ k.weight }}%)</option>{% endfor %}
-            </select>
-            <noscript><button type="submit" class="link-action">Simpan</button></noscript>
-          </form>
+          {% if exam.is_published %}<span class="uj-status">Terbit</span>{% else %}<span class="uj-status is-draft">Draf</span>{% endif %}
+          <span class="uj-sp"></span>
+          {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
           <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil</a>
           <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
             <button type="submit" class="btn btn-sm {{ 'btn-ghost' if exam.is_published else 'btn-primary' }}">{{ 'Tarik dari siswa' if exam.is_published else 'Terbitkan' }}</button>
           </form>
           <form action="/teacher/exams/{{ exam.id }}/delete" method="POST" onsubmit="return confirm('Hapus ujian ini? Semua sesi dan jawaban siswa ikut terhapus permanen.');">
-            <button type="submit" class="link-action is-danger">{{ icon('trash') }}Hapus</button>
+            <button type="submit" class="uj-ic" title="Hapus ujian" aria-label="Hapus ujian {{ exam.title|e }}">{{ icon('trash') }}</button>
           </form>
+        </div>
+        <p class="row-meta uj-meta"><span>Kelas {{ exam.class_target }}</span><span>{{ exam.duration_minutes }} menit</span>{% if exam.question_count %}<span>{{ exam.question_count }} soal acak per siswa</span>{% endif %}</p>
+        <div class="uj-set">
+          {% for jenis, aktif, label, ya, tidak in [('soal', exam.randomize_questions, 'Soal', 'Diacak', 'Berurutan'), ('opsi', exam.randomize_options, 'Opsi', 'Diacak', 'Tetap')] %}
+          <form action="/teacher/exams/{{ exam.id }}/acak" method="POST" style="display:inline">
+            <input type="hidden" name="jenis" value="{{ jenis }}">
+            <button type="submit" class="uj-chip" title="{{ label }} {{ 'diacak' if aktif else ('berurutan' if jenis == 'soal' else 'tetap') }}. Klik untuk {{ 'mematikan' if aktif else 'menyalakan' }} pengacakan"><b>{{ label }}</b>{{ ya if aktif else tidak }}</button>
+          </form>
+          {% endfor %}
+          <form action="/teacher/exams/{{ exam.id }}/component" method="POST" style="display:inline">
+            <label class="uj-chip"><b>Komponen</b>
+              <select name="component_id" aria-label="Komponen nilai {{ exam.title|e }}" onchange="this.form.submit()">
+                <option value="">Tanpa komponen</option>
+                {% for k in komponen if k.class_target == exam.class_target %}<option value="{{ k.id }}" {{ 'selected' if exam.component_id == k.id }}>{{ k.name|e }} ({{ k.weight }}%)</option>{% endfor %}
+              </select>
+            </label>
+            <noscript><button type="submit" class="link-action">Simpan</button></noscript>
+          </form>
+          <details class="uj-kkm">
+            <summary class="uj-chip" title="KKM ujian: hanya penanda tuntas, tidak mengubah nilai akhir"><b>KKM</b>{{ exam.kkm if exam.kkm is not none else 'Ikut komponen' }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/></svg></summary>
+            <form action="/teacher/exams/{{ exam.id }}/kkm" method="POST" class="uj-pop">
+              <input type="number" name="kkm" min="0" max="100" value="{{ exam.kkm if exam.kkm is not none else '' }}" placeholder="Ikut komponen" class="input" style="width:150px;min-height:34px;padding:4px 8px;font-size:13px" aria-label="KKM ujian {{ exam.title|e }}">
+              <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
+            </form>
+          </details>
         </div>
       </article>
       {% else %}
@@ -60,7 +65,9 @@
     {% if not banks %}
     <div class="notice notice-amber mt-5">{{ icon('info') }}<span>Belum ada bank soal. <a href="/teacher/question-banks" class="underline">Buat bank soal</a> dulu.</span></div>
     {% endif %}
-    {% if error == 'komponen' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Komponen nilai harus untuk kelas yang sama dengan ujian.</span></div>
+    {% if pesan == 'kkm' %}<div class="notice mt-5" role="status">{{ icon('check') }}<span>KKM ujian disimpan. Hanya penanda tuntas; nilai akhir tidak berubah.</span></div>{% endif %}
+    {% if error == 'kkm' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>KKM harus angka 0–100, atau dikosongkan agar ikut komponen.</span></div>
+    {% elif error == 'komponen' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Komponen nilai harus untuk kelas yang sama dengan ujian.</span></div>
     {% elif error == 'isian' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Isian belum benar: judul wajib, durasi 1–300 menit, bank soal harus ada.</span></div>
     {% elif error == 'opsi_aktif' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Masih ada siswa yang sedang mengerjakan ujian itu. Urutan opsi baru bisa diubah setelah mereka selesai, supaya huruf A–D di layar mereka tidak berpindah.</span></div>{% endif %}
     <form action="/teacher/exams/create" method="POST" class="mt-5 flex flex-col gap-5">
@@ -73,16 +80,18 @@
             <option value="{{ bank.id }}">{{ bank.title }} (Kelas {{ bank.class_target }})</option>
             {% endfor %}
           </select></label>
-        <label class="field"><span class="label">Kelas</span>
-          <select name="class_target" required class="select" id="pilih-kelas">
-            <option value="VII">VII</option><option value="VIII">VIII</option><option value="IX">IX</option>
-          </select></label>
+        <div class="field"><span class="label">Kelas</span>
+          <input type="hidden" name="class_target" value="{{ kelas_aktif(request) }}">
+          <p class="kelas-tetap">Kelas {{ kelas_aktif(request) }} <span class="dim">· ikut pilihan di sidebar</span></p></div>
         <label class="field"><span class="label">Masuk komponen nilai</span>
           <select name="component_id" class="select" id="pilih-komponen">
             <option value="">— Tidak masuk nilai akhir berbobot —</option>
-            {% for k in komponen %}<option value="{{ k.id }}" data-kelas="{{ k.class_target }}">{{ k.name|e }} ({{ k.weight }}%) · Kelas {{ k.class_target }}</option>{% endfor %}
+            {% for k in komponen %}<option value="{{ k.id }}">{{ k.name|e }} ({{ k.weight }}%)</option>{% endfor %}
           </select>
-          <span class="text-xs dim">Belum ada? Buat dulu di <a href="/teacher/grades" class="underline">Nilai</a>.</span></label>
+          <span class="text-xs dim">Belum ada komponen? Buat dulu di menu <a href="/teacher/grades" class="underline">Nilai</a>.</span></label>
+        <label class="field"><span class="label">KKM ujian (opsional)</span>
+          <input type="number" name="kkm" min="0" max="100" class="input" placeholder="Kosong = ikut KKM komponen">
+          <span class="text-xs dim">Hanya penanda tuntas untuk ujian ini. Nilai akhir tidak berubah.</span></label>
         <label class="field"><span class="label">Durasi (menit)</span>
           <input type="number" name="duration_minutes" value="15" min="1" max="300" required class="input"></label>
         <label class="field md:col-span-2"><span class="label">Soal per siswa (opsional)</span>
@@ -97,19 +106,4 @@
     </form>
   </section>
 </div>
-<script>
-// komponen yang tampil hanya milik kelas yang dipilih (server tetap memeriksa)
-(function () {
-  var kelas = document.getElementById('pilih-kelas'), komp = document.getElementById('pilih-komponen');
-  if (!kelas || !komp) return;
-  function saring() {
-    Array.prototype.forEach.call(komp.options, function (o) {
-      if (!o.value) return;
-      o.hidden = o.disabled = o.getAttribute('data-kelas') !== kelas.value;
-    });
-    if (komp.selectedOptions[0] && komp.selectedOptions[0].disabled) komp.value = '';
-  }
-  kelas.addEventListener('change', saring); saring();
-})();
-</script>
 {% endblock %}

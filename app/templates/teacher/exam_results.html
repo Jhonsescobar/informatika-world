@@ -7,7 +7,7 @@
 {% block eyebrow %}Hasil ujian · Kelas {{ exam.class_target }}{% endblock %}
 {% block heading %}{{ exam.title|e }}{% endblock %}
 {% block lead %}
-<p class="lead">{{ rows|length }} sesi tercatat. Nilai di bawah {{ batas }}% boleh remedial: siswa bisa mengajukan, atau Anda beri langsung dengan tombol <strong>Beri remedial</strong>. Nilai tertinggi yang dipakai.</p>
+<p class="lead">{{ rows|length }} sesi tercatat. KKM ujian ini {{ kkm_uji }} (hanya penanda tuntas, nilai akhir tidak berubah). Nilai di bawah {{ batas }}% boleh remedial: siswa bisa mengajukan, atau Anda beri langsung dengan tombol <strong>Beri remedial</strong>. Nilai tertinggi yang dipakai.</p>
 <div class="head-actions">
   {% if ada_esai %}<form action="/teacher/exams/{{ exam.id }}/recalc" method="POST" onsubmit="return confirm('Hitung ulang nilai otomatis semua jawaban esai di ujian ini? Nilai yang sudah Anda koreksi manual tidak berubah.');"><button type="submit" class="btn btn-ghost">{{ icon('refresh') }}Hitung ulang esai</button></form>{% endif %}
   <a href="/teacher/exams/{{ exam.id }}/results/export?urut={{ urut }}" class="btn btn-ghost">{{ icon('download') }}Ekspor Excel</a>
@@ -41,6 +41,40 @@
   </section>
   {% endif %}
 
+  {% if remedial_daftar.perlu or remedial_daftar.belum %}
+  <section class="panel" aria-labelledby="judul-perlu">
+    <div class="panel-head">
+      <div>
+        <h2 class="h-section" id="judul-perlu">Perlu remedial · {{ remedial_daftar.perlu|length }}</h2>
+        <p class="panel-note">Nilai tertinggi di bawah {{ batas }}%. {{ remedial_daftar.belum|length }} siswa lain belum mengerjakan.</p>
+      </div>
+      <div class="head-actions">
+        <a href="/teacher/exams/{{ exam.id }}/remedial/export" class="btn btn-ghost btn-sm">{{ icon('download') }}Unduh daftar</a>
+        {% set belum_izin = remedial_daftar.perlu|rejectattr('status', 'equalto', 'approved')|list|length %}
+        {% if belum_izin %}
+        <form action="/teacher/exams/{{ exam.id }}/remedial-semua" method="POST" onsubmit="return confirm('Beri izin remedial ke {{ belum_izin }} siswa ini sekaligus?');">
+          <button type="submit" class="btn btn-primary btn-sm">{{ icon('refresh') }}Beri remedial ke semua ({{ belum_izin }})</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% if remedial_daftar.perlu %}
+    <div class="rows" style="margin:0 -24px -24px">
+      {% for x in remedial_daftar.perlu %}
+      <div class="row">
+        <div class="row-main"><p class="row-title">{{ x.siswa.name|e }}</p><p class="row-meta"><span>{{ x.rombel|e }}</span></p></div>
+        <span class="mono text-white">{{ x.persen|round|int }}%</span>
+        {% if x.status == 'approved' %}<span class="chip chip-teal">Izin diberi</span>
+        {% elif x.status == 'pending' %}<span class="chip chip-amber">Menunggu</span>
+        {% else %}<span class="chip">Belum diberi izin</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Semua siswa yang sudah mengerjakan mencapai batas {{ batas }}%.</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if pesan == 'remedial' %}<div class="notice" role="status">{{ icon('check') }}<span>Izin remedial diberikan ke {{ n }} siswa. Mereka akan melihat tombol Mulai remedial di beranda.</span></div>{% endif %}
   {% if pesan == 'hitung' %}<div class="notice" role="status">{{ icon('check') }}<span>Nilai esai dihitung ulang dengan aturan terbaru: {{ n }} jawaban berubah. Koreksi manual Anda tidak diubah.</span></div>{% endif %}
   <div class="flex flex-wrap items-center gap-2" aria-label="Urutkan">
     <span class="text-xs dim mr-1">Urutkan</span>
@@ -58,7 +92,7 @@
           <td><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="text-white font-semibold hover:underline">{{ r.siswa.name|e }}</a>{% if r.ke > 1 %} <span class="chip chip-amber ml-1">remedial {{ r.ke - 1 }}</span>{% endif %}</td>
           <td class="dim hidden md:table-cell">{{ r.rombel|e }}</td>
           <td><span class="chip">{{ label_status.get(r.sesi.status, r.sesi.status) }}</span></td>
-          <td class="num">{% if r.persen is not none %}<span class="chip {{ 'chip-teal' if r.persen >= batas else 'chip-danger' }}" style="font-size:13px">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+          <td class="num">{% if r.persen is not none %}{% set lulus = r.persen >= kkm_uji %}<span class="chip {{ 'chip-teal' if lulus else 'chip-danger' }}" style="font-size:13px" title="{{ 'Tuntas' if lulus else 'Belum tuntas' }}">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
           <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
           <td class="num dim hidden md:table-cell">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
           <td class="num"><div class="flex items-center justify-end gap-3">

@@ -26,6 +26,7 @@ class Exam(Base):
     # Fitur anti-cheat: Acak urutan soal untuk setiap siswa?
     
     randomize_options = Column(Boolean, default=False)
+    kkm = Column(Integer, nullable=True)   # KKM ujian (penanda tuntas saja); kosong = ikut komponen
 
     # Jumlah soal per siswa, diambil acak dari bank (kosong = semua soal di bank)
     question_count = Column(Integer, nullable=True)
@@ -123,4 +124,4 @@ class ExamEvent(Base):
     option_id = Column(Integer, nullable=True)
     detail = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    # Apakah jawaban ini benar? (Dievaluasi saat submit)
+    # Apakah jawaban ini benar? (Dievaluasi saat submit)

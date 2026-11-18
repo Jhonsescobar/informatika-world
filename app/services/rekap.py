@@ -7,6 +7,12 @@
 #   nilai komponen = rata-rata nilai ujian yang masuk komponen itu (belum mengerjakan = 0)
 #   nilai akhir    = Σ(nilai komponen × bobot) / Σ bobot   -> selalu skala 0–100
 #   tanpa komponen = rata-rata semua ujian (supaya peringkat tetap jalan sebelum bobot diatur)
+#
+# KKM (batas tuntas), bertingkat:
+#   nilai akhir tuntas   : nilai akhir >= KKM tahun ajaran (kolom academic_years.kkm)
+#   komponen tuntas      : nilai komponen >= KKM komponen; kosong = KKM tahun ajaran
+#   ujian tuntas         : persen tertinggi siswa >= KKM ujian; kosong = KKM komponen, lalu KKM tahun ajaran
+#   KKM ujian dan komponen TIDAK mengubah nilai akhir. Batas remedial tetap global (BATAS_REMEDIAL).
 # Hanya ujian tahun ajaran aktif yang terbit / sudah pernah dikerjakan yang dihitung.
 
 from collections import defaultdict
@@ -18,8 +24,49 @@ from app.models.grade import ScoreComponent
 from app.models.question import Question
 from app.models.student import Student
 
-KKM = 75             # batas tuntas nilai akhir
-BATAS_REMEDIAL = 60  # nilai ujian di bawah ini boleh remedial
+KKM_DEFAULT = 75     # dipakai bila tahun ajaran belum punya KKM (seharusnya tidak terjadi setelah migrasi)
+BATAS_REMEDIAL = 60  # nilai ujian (persen) di bawah ini boleh remedial; sengaja tidak ikut KKM
+
+
+def kkm_akhir(tahun) -> int:
+    """KKM nilai akhir tahun ajaran aktif."""
+    return tahun.kkm if tahun is not None and tahun.kkm is not None else KKM_DEFAULT
+
+
+def kkm_komponen(komponen, kkm_tahun: int) -> int:
+    return komponen.kkm if komponen is not None and komponen.kkm is not None else kkm_tahun
+
+
+def kkm_ujian(exam, komponen_by_id: dict, kkm_tahun: int) -> int:
+    """KKM ujian: isian ujian, lalu KKM komponennya, lalu KKM tahun ajaran."""
+    if exam.kkm is not None:
+        return exam.kkm
+    return kkm_komponen(komponen_by_id.get(exam.component_id), kkm_tahun)
+
+
+def status_ujian(db: Session, exam, student_id: int, tahun=None) -> dict:
+    """Status tuntas satu siswa di satu ujian, memakai persen tertinggi (sama seperti rekap)."""
+    tahun = tahun or tahun_aktif(db)
+    kkm_tahun = kkm_akhir(tahun)
+    komp = {}
+    if exam.component_id:
+        k = db.query(ScoreComponent).filter(ScoreComponent.id == exam.component_id).first()
+        if k:
+            komp[k.id] = k
+    batas = kkm_ujian(exam, komp, kkm_tahun)
+    persen = persen_terbaik(db, [exam.id], [student_id]).get((student_id, exam.id))
+    return {"persen": persen, "tuntas": persen is not None and persen >= batas, "kkm": batas}
+
+
+def tingkat_siswa(db: Session, student_id: int):
+    """Tingkat (VII/VIII/IX) dari rombel siswa di tahun ajaran aktif; None jika belum punya rombel."""
+    baris = (db.query(SchoolClass.class_name)
+             .join(Rombel, Rombel.class_id == SchoolClass.id)
+             .join(Enrollment, Enrollment.rombel_id == Rombel.id)
+             .outerjoin(AcademicYear, AcademicYear.id == Enrollment.academic_year_id)
+             .filter(Enrollment.student_id == student_id)
+             .order_by(AcademicYear.is_active.desc(), Enrollment.id.desc())).first()
+    return baris[0] if baris else None
 
 
 def tahun_aktif(db: Session):
@@ -92,6 +139,10 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
     per_komponen = {k.id: [e for e in ujian if e.component_id == k.id] for k in komponen}
     lepas = [e for e in ujian if e.component_id not in per_komponen]
     total_bobot = sum(k.weight for k in komponen if per_komponen[k.id])
+    kkm_tahun = kkm_akhir(tahun)
+    komp_by_id = {k.id: k for k in komponen}
+    kkm_komp = {k.id: kkm_komponen(k, kkm_tahun) for k in komponen}
+    kkm_uj = {e.id: kkm_ujian(e, komp_by_id, kkm_tahun) for e in ujian}
 
     baris = []
     for s, nama_rombel, rid in murid:
@@ -104,6 +155,10 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
                 continue
             belum += sum(1 for e in daftar if nilai_ujian[e.id] is None)
             nilai_komp[k.id] = round(sum(nilai_ujian[e.id] or 0 for e in daftar) / len(daftar), 1)
+        tuntas_komp = {k.id: (nilai_komp[k.id] >= kkm_komp[k.id]) if nilai_komp[k.id] is not None else None
+                       for k in komponen}
+        tuntas_uj = {e.id: (nilai_ujian[e.id] >= kkm_uj[e.id]) if nilai_ujian[e.id] is not None else None
+                     for e in ujian}
         if total_bobot:
             akhir = round(sum((nilai_komp[k.id] or 0) * k.weight for k in komponen if per_komponen[k.id]) / total_bobot, 1)
         elif ujian:
@@ -113,12 +168,14 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
             akhir = None
         baris.append({"siswa": s, "rombel": nama_rombel, "rombel_id": rid, "ujian": nilai_ujian,
                       "komponen": nilai_komp, "akhir": akhir, "belum": belum,
-                      "tuntas": akhir is not None and akhir >= KKM})
+                      "tuntas": akhir is not None and akhir >= kkm_tahun,
+                      "tuntas_komponen": tuntas_komp, "tuntas_ujian": tuntas_uj})
 
     bobot_semua = sum(k.weight for k in komponen)
     return {"kelas": kelas, "tahun": tahun, "komponen": komponen, "per_komponen": per_komponen, "ujian": ujian,
             "lepas": lepas, "baris": baris, "total_bobot": total_bobot, "bobot_semua": bobot_semua,
-            "pakai_bobot": bool(total_bobot)}
+            "pakai_bobot": bool(total_bobot), "kkm_akhir": kkm_tahun, "kkm_komponen": kkm_komp,
+            "kkm_ujian": kkm_uj}
 
 
 def urutkan(baris: list, urut: str) -> list:

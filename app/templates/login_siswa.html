@@ -60,7 +60,7 @@
         btn.className = 'saran-item';
         btn.setAttribute('role', 'option');
         btn.textContent = s.name;          // textContent: nama tidak pernah dibaca sebagai HTML
-        btn.onclick = () => pilihNama(s.id);
+        btn.onclick = () => pilihNama(s.id, s.t);
         kotakSaran.appendChild(btn);
       });
       kotakSaran.classList.remove('hidden');
@@ -70,8 +70,8 @@
     }
   }
 
-  function pilihNama(id) {
-    window.location.href = '/student/verify?student_id=' + id;
+  function pilihNama(id, tanda) {
+    window.location.href = '/student/verify?student_id=' + id + '&t=' + encodeURIComponent(tanda);
   }
 
   function sembunyikanSaran() {

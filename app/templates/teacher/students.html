@@ -88,7 +88,7 @@
         <select name="rombel_id" class="select">
           <option value="">Belum masuk rombel</option>
           {% set ns = namespace(kelas=None) %}
-          {% for r, k in rombels %}
+          {% for r, k in semua_rombel %}
             {% if k.class_name != ns.kelas %}
               {% if ns.kelas %}</optgroup>{% endif %}
               <optgroup label="Kelas {{ k.class_name }}">
@@ -117,7 +117,7 @@
     <option value="delete">Hapus permanen</option>
   </select>
   <select name="rombel_id" form="aksi-massal" id="pilih-rombel" class="select" style="min-height:40px;padding-top:6px;padding-bottom:6px" aria-label="Rombel tujuan">
-    {% for r, k in rombels %}<option value="{{ r.id }}">{{ r.rombel_name }}</option>{% endfor %}
+    {% for r, k in semua_rombel %}<option value="{{ r.id }}">{{ r.rombel_name }}</option>{% endfor %}
   </select>
   <input type="hidden" name="kembali" value="{{ kembali|e }}" form="aksi-massal">
   <button type="submit" form="aksi-massal" class="btn btn-primary btn-sm" id="tombol-aksi">Terapkan</button>

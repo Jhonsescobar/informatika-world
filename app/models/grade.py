@@ -14,6 +14,7 @@ class ScoreComponent(Base):
     # Nama komponen (contoh: "Formatif 1")
     
     weight = Column(Integer, nullable=False)
+    kkm = Column(Integer, nullable=True)   # KKM komponen; kosong = KKM tahun ajaran
     # Bobot komponen dalam persentase (contoh: 15 untuk 15%)
     
     class_target = Column(String, nullable=False)
@@ -36,4 +37,4 @@ class Score(Base):
     # Komponen nilainya apa (relasi ke ScoreComponent)
     
     score_value = Column(Integer, nullable=False)
-    # Nilai siswa (0-100)
+    # Nilai siswa (0-100)

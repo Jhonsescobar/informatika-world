@@ -1,0 +1,31 @@
+{# Grafik garis nilai ujian (SVG). Pakai: {% from "layouts/grafik.html" import grafik %} {{ grafik(g) }}
+   g = bentuk_grafik(titik). Animasi ada di iw.css (.grafik-*), dan dimatikan bagi yang memilih gerak dikurangi. #}
+{% macro grafik(g, judul="Grafik nilai ujian") %}
+<svg class="grafik" viewBox="0 0 {{ g.lebar }} {{ g.tinggi }}" role="img" aria-label="{{ judul }}: {% for t in g.titik %}{{ t.judul|e }} {{ t.nilai|round|int }}{{ ', ' if not loop.last }}{% endfor %}">
+  <defs>
+    <linearGradient id="gf-area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2fe0c5" stop-opacity=".34"/><stop offset="1" stop-color="#2fe0c5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  {% for s in g.sumbu %}
+  <line class="grafik-kisi" x1="{{ g.kiri }}" x2="{{ g.kanan }}" y1="{{ s.y }}" y2="{{ s.y }}"/>
+  <text class="grafik-sumbu" x="{{ g.kiri - 8 }}" y="{{ s.y + 4 }}" text-anchor="end">{{ s.nilai }}</text>
+  {% endfor %}
+  {% if g.kkm_y %}
+  <line class="grafik-kkm" x1="{{ g.kiri }}" x2="{{ g.kanan }}" y1="{{ g.kkm_y }}" y2="{{ g.kkm_y }}"/>
+  <text class="grafik-kkm-teks" x="{{ g.kiri + 4 }}" y="{{ g.kkm_y - 6 }}">KKM</text>
+  {% endif %}
+  {% if g.area %}<path class="grafik-area" d="{{ g.area }}" fill="url(#gf-area)"/>{% endif %}
+  {% if g.pembanding %}<polyline class="grafik-pembanding" points="{{ g.pembanding }}"/>{% endif %}
+  {% if g.garis %}<path class="grafik-garis" d="{{ g.garis }}" pathLength="1"/>{% endif %}
+  {% for t in g.titik %}
+  <g class="grafik-titik {{ 'is-ok' if t.tuntas else 'is-no' }}" style="--i: {{ loop.index0 }}">
+    <title>{{ t.judul|e }}: {{ t.nilai|round|int }}</title>
+    <circle class="grafik-halo" cx="{{ t.x }}" cy="{{ t.y }}" r="11"/>
+    <circle class="grafik-inti" cx="{{ t.x }}" cy="{{ t.y }}" r="5.5"/>
+    <text class="grafik-nilai" x="{{ t.x }}" y="{{ t.y - 16 if t.y > g.atas + 22 else t.y + 28 }}" text-anchor="middle">{{ t.nilai|round|int }}</text>
+  </g>
+  <text class="grafik-sumbu" x="{{ t.x }}" y="{{ g.bawah + 22 }}" text-anchor="middle">{{ t.no }}</text>
+  {% endfor %}
+</svg>
+{% endmacro %}
