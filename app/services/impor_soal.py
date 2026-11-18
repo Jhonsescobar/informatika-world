@@ -10,6 +10,7 @@
 #              {"tipe": "esai", "pertanyaan": "...", "kunci": "...", "kata_kunci": "a/b, c", "poin": 5} ]}
 # Daftar soal tanpa {"soal": ...} juga diterima.
 
+import ast
 import json
 import re
 
@@ -17,6 +18,7 @@ MAKS_SOAL = 100
 MAKS_TEKS = 4000
 MAKS_OPSI_TEKS = 500
 HURUF = "ABCDE"
+BAHASA = ("python", "excel", "teks")     # isian "bahasa" untuk kode; hanya Python yang diperiksa sintaksnya
 
 CONTOH = {
     "topik": "Algoritma dan Pemrograman Python",
@@ -32,8 +34,36 @@ CONTOH = {
          "kunci": "Perulangan for digunakan untuk mengulang perintah sebanyak jumlah tertentu\n"
                   "For dipakai untuk menjalankan perintah berulang kali untuk setiap item dalam daftar",
          "kata_kunci": "ulang/perulangan/berulang, jumlah/banyak/setiap/item", "poin": 5},
+        {"tipe": "pg", "pertanyaan": "Apa arti rumus Excel berikut?",
+         "kode": "=SUM(A1:A3)", "bahasa": "excel",
+         "opsi": ["Menjumlahkan isi sel A1 sampai A3", "Mengalikan isi sel A1 sampai A3",
+                  "Mencari nilai terbesar di sel A1 sampai A3", "Menghitung banyak sel di A1 sampai A3"],
+         "jawaban": "A", "poin": 1},
     ],
 }
+
+
+_KODE_MENEMPEL = re.compile(r'(?<=[)"\'])(?=(?:print|input)\()')
+
+
+def _periksa_kode(kode: str, bahasa: str) -> tuple[str, list[str], str]:
+    """(kode, perbaikan, galat). Kode Python yang menempel di satu baris (mis. nama = "A"print(nama))
+    dipisah per baris, tetapi hanya bila hasilnya valid. Kode yang tetap tidak valid dilaporkan dengan nomor baris."""
+    if bahasa != "python" or not kode:
+        return kode, [], ""
+    try:
+        ast.parse(kode)
+        return kode, [], ""
+    except SyntaxError as e:
+        galat = f"kode Python tidak valid di baris {e.lineno}: {e.msg}"
+    pisah = _KODE_MENEMPEL.sub("\n", kode)
+    if pisah != kode:
+        try:
+            ast.parse(pisah)
+            return pisah, ["kode yang menempel di satu baris dipisah per baris"], ""
+        except SyntaxError:
+            pass
+    return kode, [], galat
 
 
 def rapikan(teks: str) -> tuple[str, list[str]]:
@@ -201,6 +231,17 @@ def periksa(teks: str) -> dict:
         pertanyaan = _teks(s.get("pertanyaan") or s.get("soal") or s.get("question"))
         kode = s.get("kode") or s.get("code") or ""
         kode = kode.strip("\n") if isinstance(kode, str) else ""
+        bahasa = _teks(s.get("bahasa") or "python").lower()
+        if bahasa not in BAHASA:
+            galat.append(f'bahasa "{bahasa}" tidak dikenal (pakai "python", "excel", atau "teks")')
+        if s.get("kode_tidak_valid") is True:                 # kode sengaja salah, mis. soal "cari kesalahannya"
+            perbaikan_kode, galat_kode = [], ""
+        else:
+            kode, perbaikan_kode, galat_kode = _periksa_kode(kode, bahasa)
+        if perbaikan_kode:
+            hasil["perbaikan"].append(f"Soal {n}: " + "; ".join(perbaikan_kode) + ".")
+        if galat_kode:
+            galat.append(galat_kode)
         try:
             poin = int(s.get("poin", s.get("points", 1)) or 1)
         except (TypeError, ValueError):
@@ -213,7 +254,7 @@ def periksa(teks: str) -> dict:
             galat.append(f"pertanyaan/kode lebih dari {MAKS_TEKS} karakter")
         if not 1 <= poin <= 100:
             galat.append("poin harus 1–100")
-        item = {"tipe": tipe, "pertanyaan": pertanyaan, "kode": kode, "poin": poin}
+        item = {"tipe": tipe, "pertanyaan": pertanyaan, "kode": kode, "bahasa": bahasa, "poin": poin}
 
         if tipe == "pg":
             opsi = s.get("opsi") or s.get("options") or []
@@ -282,9 +323,9 @@ def _pesan_json(msg: str) -> str:
     }.get(msg, msg)
 
 
-def gabung_kode(pertanyaan: str, kode: str) -> str:
-    """Kode Python disimpan di teks soal sebagai blok ``` agar ditampilkan rapi (lihat services/teks.py)."""
-    return pertanyaan if not kode else f"{pertanyaan}\n\n```python\n{kode}\n```"
+def gabung_kode(pertanyaan: str, kode: str, bahasa: str = "python") -> str:
+    """Kode disimpan di teks soal sebagai blok ``` agar ditampilkan rapi (lihat services/teks.py)."""
+    return pertanyaan if not kode else f"{pertanyaan}\n\n```{bahasa}\n{kode}\n```"
 
 
 def prompt_ai(topik: str, kelas: str, jumlah_pg: int, jumlah_esai: int, kesulitan: str) -> str:
@@ -310,8 +351,12 @@ PILIHAN GANDA
 7. Pengecoh harus masuk akal (kesalahan konsep yang umum), dan panjang keempat opsi mirip,
    supaya jawaban benar tidak ketahuan dari bentuknya.
 8. Sebar kunci jawaban (A, B, C, D) secara seimbang.
-9. Bila memakai kode Python: taruh di isian "kode" (bukan di "pertanyaan"), indentasi 4 spasi, baris baru ditulis \\n,
-   teks di dalam kode memakai kutip tunggal: print('Halo'), BUKAN print("Halo").
+9. Bila soal memakai kode: taruh di isian "kode" (bukan di "pertanyaan"), dan isi "bahasa" dengan
+   "python" (kode Python), "excel" (rumus atau tabel Excel), atau "teks" (lainnya).
+   Setiap perintah di baris sendiri (pisahkan dengan \\n), indentasi 4 spasi, teks di dalam kode memakai
+   kutip tunggal: print('Halo'), BUKAN print("Halo"). Jangan menyambung dua perintah dalam satu baris.
+   Bila siswa diminta melengkapi kode, tulis kode lengkap di "kode" dengan bagian kosong diganti ___,
+   dan "kunci" berisi kode lengkap yang benar.
 
 ESAI
 10. Pertanyaan meminta jawaban berupa KALIMAT (jelaskan / mengapa / bagaimana), bukan jawaban satu kata.

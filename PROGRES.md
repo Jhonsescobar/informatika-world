@@ -159,3 +159,9 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Rapor cetak: `/teacher/grades/class/{kelas}/rapor` (?rombel=, ?siswa=), satu halaman A4 per siswa, simpan PDF lewat dialog cetak.
 - Rute baru ada di `routers/teacher_analisis.py` (awal pemisahan teacher.py). `tingkat_siswa` pindah ke `services/rekap.py`.
 - Cadangan ke Google Drive: isi `BACKUP_COPY_DIR` di .env dengan folder Google Drive for Desktop (sudah didukung `backup_db.py`).
+
+## Impor soal: kode terstruktur (18 Nov 2026)
+- Isian "bahasa" (python/excel/teks) untuk kode; kode Python diperiksa sintaksnya dengan nomor baris.
+- Kode Python yang menempel di satu baris (nama = "A"print(nama)) dipisah otomatis bila hasilnya valid.
+- "kode_tidak_valid": true untuk soal yang sengaja berisi kode salah.
+- Prompt AI dan contoh: rumus Excel, isian rumpang dengan ___.

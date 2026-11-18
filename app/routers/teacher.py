@@ -245,13 +245,13 @@ async def import_questions(bank_id: int, request: Request, db: Session = Depends
     hasil = periksa(teks)
     ada = {_kunci_teks(q.text) for q in db.query(Question.text).filter(Question.bank_id == bank_id)}
     for item in hasil["soal"]:
-        item["kembar"] = _kunci_teks(gabung_kode(item["pertanyaan"], item["kode"])) in ada
+        item["kembar"] = _kunci_teks(gabung_kode(item["pertanyaan"], item["kode"], item.get("bahasa", "python"))) in ada
     if form.get("aksi") != "simpan" or hasil["galat"]:
         return halaman_bank(request, db, user, bank_id, impor=hasil, teks_impor=teks, mode="impor")
 
     disimpan = lewat = 0
     for item in hasil["soal"]:
-        teks_soal = gabung_kode(item["pertanyaan"], item["kode"])
+        teks_soal = gabung_kode(item["pertanyaan"], item["kode"], item.get("bahasa", "python"))
         if _kunci_teks(teks_soal) in ada:      # soal yang sama sudah ada (misalnya tempel dua kali): dilewati
             lewat += 1
             continue

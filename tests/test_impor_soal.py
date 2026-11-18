@@ -4,7 +4,7 @@
 import json
 
 from app.models.question import Question, QuestionOption
-from app.services.impor_soal import CONTOH, periksa, rapikan
+from app.services.impor_soal import CONTOH, gabung_kode, periksa, rapikan
 from app.services.teks import format_soal
 from tests.data_uji import buat_ujian, kerjakan
 
@@ -13,7 +13,7 @@ BERSIH = json.dumps(CONTOH, ensure_ascii=False)
 
 def test_contoh_bawaan_lolos_tanpa_galat():
     h = periksa(BERSIH)
-    assert h["galat"] == [] and len(h["soal"]) == 3 and h["topik"]
+    assert h["galat"] == [] and len(h["soal"]) == 4 and h["topik"]
     assert h["soal"][1]["kode"].startswith("angka = 7") and h["soal"][1]["benar"] == 1
 
 
@@ -76,10 +76,10 @@ def test_periksa_tidak_menyimpan_lalu_simpan(guru, db, data):
     url = f"/teacher/question-banks/{data['bank']}/import"
     awal = db.query(Question).count()
     r = guru.post(url, data={"aksi": "periksa", "teks": BERSIH})
-    assert r.status_code == 200 and "Pratinjau impor" in r.text and "Simpan 3 soal" in r.text
+    assert r.status_code == 200 and "Pratinjau impor" in r.text and "Simpan 4 soal" in r.text
     assert db.query(Question).count() == awal
     r = guru.post(url, data={"aksi": "simpan", "teks": BERSIH})
-    assert "pesan=impor&n=3&lewat=0" in r.headers["location"]
+    assert "pesan=impor&n=4&lewat=0" in r.headers["location"]
     q = db.query(Question).filter(Question.text.like("Apa keluaran program%")).one()
     assert "```python\nangka = 7" in q.text and q.points == 1
     assert [o.is_correct for o in db.query(QuestionOption).filter_by(question_id=q.id).order_by(QuestionOption.id)] == [False, True, False, False]
@@ -87,8 +87,8 @@ def test_periksa_tidak_menyimpan_lalu_simpan(guru, db, data):
     assert esai.keywords.startswith("ulang/perulangan")
     # tempel dua kali: tidak ada soal kembar
     r = guru.post(url, data={"aksi": "simpan", "teks": BERSIH})
-    assert "n=0&lewat=3" in r.headers["location"]
-    assert db.query(Question).count() == awal + 3
+    assert "n=0&lewat=4" in r.headers["location"]
+    assert db.query(Question).count() == awal + 4
 
 
 def test_simpan_ditolak_bila_masih_ada_galat(guru, db, data):
@@ -194,6 +194,46 @@ def test_prompt_memuat_aturan_sistem_dan_contoh_yang_bisa_diimpor():
         assert aturan in t, aturan
     contoh = t[t.index('{\n  "topik"'):t.index("\n\nSebelum menjawab")]
     h = periksa(contoh)
-    assert h["galat"] == [] and len(h["soal"]) == 3
+    assert h["galat"] == [] and len(h["soal"]) == 4
     assert "print(\"" not in h["soal"][1]["kode"]                  # contoh mengikuti aturan kutip tunggal
     assert len(h["soal"][2]["kunci"].splitlines()) == 2           # contoh kunci esai lebih dari satu versi
+
+
+def _pg(kode=None, bahasa=None, **extra):
+    soal = {"tipe": "pg", "pertanyaan": "Apa keluarannya?", "opsi": ["a", "b"], "jawaban": "A"}
+    if kode is not None:
+        soal["kode"] = kode
+    if bahasa is not None:
+        soal["bahasa"] = bahasa
+    soal.update(extra)
+    return json.dumps({"soal": [soal]}, ensure_ascii=False)
+
+
+def test_kode_menempel_satu_baris_dipisah_otomatis():
+    h = periksa(_pg('nama = "Andi"print(nama)'))
+    assert h["galat"] == [] and h["soal"][0]["kode"] == 'nama = "Andi"\nprint(nama)'
+    assert any("dipisah per baris" in p for p in h["perbaikan"])
+
+
+def test_kode_python_tidak_valid_ditunjuk_barisnya():
+    h = periksa(_pg("print('a'"))
+    assert h["galat"] and "Soal 1" in h["galat"][0] and "baris 1" in h["galat"][0]
+    assert h["soal"][0]["galat"]
+
+
+def test_kode_sengaja_salah_boleh_dengan_tanda():
+    assert periksa(_pg("print('a'", kode_tidak_valid=True))["galat"] == []
+
+
+def test_kode_excel_tidak_diperiksa_sebagai_python():
+    h = periksa(_pg("=SUM(A1:A3)", bahasa="excel"))
+    assert h["galat"] == [] and h["soal"][0]["bahasa"] == "excel"
+
+
+def test_bahasa_tidak_dikenal_ditolak():
+    assert "tidak dikenal" in periksa(_pg("x", bahasa="cobol"))["galat"][0]
+
+
+def test_gabung_kode_memakai_bahasa_untuk_blok():
+    assert "```excel\n=SUM(A1:A3)\n```" in gabung_kode("Rumus?", "=SUM(A1:A3)", "excel")
+    assert "```python\nx = 1\n```" in gabung_kode("Kode?", "x = 1")
