@@ -178,3 +178,8 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 ## Kesempatan melanjutkan ujian (20 Nov 2026)
 - Guru bisa membuka lagi sesi yang terkirim otomatis (mis. keluar layar tak sengaja): tombol "Beri kesempatan" di hasil ujian. Jawaban tetap, waktu memakai sisa waktu (minimal 3 menit), hitungan pelanggaran mulai dari nol, catatan pelanggaran lama tetap ada. Logika di `services/kesempatan.py`.
 - Hanya untuk sesi kirim otomatis yang masih punya sisa waktu dan belum punya sesi lebih baru.
+
+## Hasil ujian: panel rombel bisa dilipat (20 Nov 2026)
+- Tiap rombel jadi satu baris ringkas (jumlah siswa, rata-rata dengan bar, tuntas, pelanggaran); tabel siswa hanya tampil saat dibuka. Rombel pertama terbuka, lainnya tertutup.
+- Tombol "Buka semua"/"Tutup semua"; klik chip rombel membuka dan menggulir ke rombel itu (juga lewat alamat `#rombel-VII-2`). Memakai `<details>` bawaan browser, bisa lewat keyboard.
+- Ikon baru `chevron-right` di `layouts/icons.html`.

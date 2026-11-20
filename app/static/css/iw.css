@@ -893,3 +893,25 @@ details.uj-kkm > summary::-webkit-details-marker { display: none; }
 .chip-muted { color: var(--muted); }
 .ikon-kecil { display: inline-block; width: 15px; height: 15px; vertical-align: -2px; }
 .ikon-kecil svg { width: 100%; height: 100%; }
+
+/* hasil ujian: panel rombel yang bisa dilipat */
+.rombel { margin-bottom: 4px; scroll-margin-top: 16px; }
+.rombel-head {
+  display: grid; grid-template-columns: 20px minmax(0, 1.4fr) minmax(110px, 1fr) auto auto; align-items: center; gap: 14px;
+  padding: 16px 22px; cursor: pointer; list-style: none;
+}
+.rombel-head::-webkit-details-marker { display: none; }
+.rombel-head:hover { background: var(--panel-soft); }
+.rombel-head:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.rombel-panah { display: grid; place-items: center; color: var(--muted); transition: transform .2s ease; }
+.rombel-panah svg { width: 16px; height: 16px; }
+.rombel[open] .rombel-panah { transform: rotate(90deg); }
+.rombel-nama b { display: block; font: 700 1.05rem var(--font-display); color: #fff; }
+.rombel-nama small, .rombel-rata small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.rombel-rata .meter { display: block; height: 6px; }
+@media (max-width: 720px) {
+  .rombel-head { grid-template-columns: 20px 1fr auto; row-gap: 8px; }
+  .rombel-rata { grid-column: 2 / -1; grid-row: 2; }
+  .rombel-head .chip { justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { .rombel-panah { transition: none; } }

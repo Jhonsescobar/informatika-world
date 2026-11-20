@@ -154,3 +154,16 @@ def test_hasil_ujian_dipisah_per_rombel(guru, db, data, masuk_siswa):
     assert "Dodi" in bagian[1] and "Ani" not in bagian[1]
     assert 'href="#rombel-VII-2"' in html and 'id="rombel-VII-2"' in html
     assert "Tuntas 1/1" in bagian[0] and "Tuntas 0/1" in bagian[1]
+
+
+def test_panel_rombel_bisa_dilipat_dan_rombel_pertama_terbuka(guru, db, data, masuk_siswa):
+    a = buat_ujian(db, data, "UH lipat")
+    kerjakan(masuk_siswa(data["siswa"]["Ani"]), a, data, 4)
+    kerjakan(masuk_siswa(data["siswa"]["Dodi"]), a, data, 1)
+    html = guru.get(f"/teacher/exams/{a}/results").text
+    assert html.count('<details class="panel panel-tight rombel"') == 2
+    assert 'id="rombel-VII-1" aria-label="Hasil rombel VII.1" open' in html
+    assert 'id="rombel-VII-2" aria-label="Hasil rombel VII.2">' in html           # rombel kedua tertutup
+    assert 'data-lipat="buka"' in html and 'data-lipat="tutup"' in html
+    satu = guru.get(f"/teacher/exams/{buat_ujian(db, data, 'Kosong')}/results").text
+    assert "Belum ada yang mengerjakan" in satu and 'data-lipat="buka"' not in satu

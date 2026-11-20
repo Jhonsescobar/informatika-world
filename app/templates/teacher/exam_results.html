@@ -89,24 +89,28 @@
   </div>
 
   {% if grup|length > 1 %}
-  <nav class="flex flex-wrap items-center gap-2" aria-label="Loncat ke rombel">
-    <span class="text-xs dim mr-1">Rombel</span>
-    {% for g in grup %}<a href="#{{ g.id }}" class="chip" style="text-decoration:none">{{ g.nama|e }} · {{ g.siswa }}</a>{% endfor %}
-  </nav>
+  <div class="flex flex-wrap items-center gap-2" id="nav-rombel">
+    <nav class="flex flex-wrap items-center gap-2" aria-label="Loncat ke rombel">
+      <span class="text-xs dim mr-1">Rombel</span>
+      {% for g in grup %}<a href="#{{ g.id }}" class="chip" style="text-decoration:none">{{ g.nama|e }} · {{ g.siswa }}</a>{% endfor %}
+    </nav>
+    <span class="ml-auto flex gap-2">
+      <button type="button" class="btn btn-ghost btn-sm" data-lipat="buka">Buka semua</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-lipat="tutup">Tutup semua</button>
+    </span>
+  </div>
   {% endif %}
 
   {% for g in grup %}
-  <section class="panel panel-tight overflow-x-auto" id="{{ g.id }}" aria-label="Hasil rombel {{ g.nama|e }}" style="scroll-margin-top:16px">
-    <div class="px-6 pt-5 pb-4 flex flex-wrap items-center justify-between gap-3" style="border-bottom:1px solid var(--line)">
-      <div>
-        <h2 class="h-section">Rombel {{ g.nama|e }}</h2>
-        <p class="panel-note">{{ g.siswa }} siswa{% if g.pelanggaran %} · {{ g.pelanggaran }} pelanggaran{% endif %}</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="chip">Rata-rata {{ g.rata if g.rata is not none else '–' }}</span>
-        <span class="chip {{ 'chip-teal' if g.dinilai and g.tuntas == g.dinilai else 'chip-amber' }}">Tuntas {{ g.tuntas }}/{{ g.dinilai }}</span>
-      </div>
-    </div>
+  <details class="panel panel-tight rombel" id="{{ g.id }}" aria-label="Hasil rombel {{ g.nama|e }}"{% if loop.first or grup|length == 1 %} open{% endif %}>
+    <summary class="rombel-head">
+      <span class="rombel-panah" aria-hidden="true">{{ icon('chevron-right') }}</span>
+      <span class="rombel-nama"><b>Rombel {{ g.nama|e }}</b><small>{{ g.siswa }} siswa</small></span>
+      <span class="rombel-rata"><small>Rata-rata {{ g.rata if g.rata is not none else '–' }}</small><span class="meter" role="img" aria-label="rata-rata {{ g.rata or 0 }} persen"><span style="width: {{ g.rata or 0 }}%; background:var(--teal)"></span></span></span>
+      <span class="chip {{ 'chip-teal' if g.dinilai and g.tuntas == g.dinilai else 'chip-amber' }}">Tuntas {{ g.tuntas }}/{{ g.dinilai }}</span>
+      <span class="chip {{ 'chip-amber' if g.pelanggaran else '' }}">{{ g.pelanggaran }} pelanggaran</span>
+    </summary>
+    <div class="overflow-x-auto" style="border-top:1px solid var(--line)">
     <table class="table">
       <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Tindakan</th></tr></thead>
       <tbody>
@@ -129,10 +133,28 @@
         {% endfor %}
       </tbody>
     </table>
-  </section>
+    </div>
+  </details>
   {% else %}
   <section class="panel"><div class="empty"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></section>
   {% endfor %}
   <p class="text-xs dim">Pelanggaran = keluar dari layar ujian, pindah tab, mencoba menyalin, klik kanan, screenshot, atau membuka alat pengembang. Tiga kali keluar layar membuat jawaban terkirim otomatis.</p>
 </div>
+<script>
+(function () {
+  var semua = function () { return document.querySelectorAll("details.rombel"); };
+  document.querySelectorAll("[data-lipat]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var buka = b.dataset.lipat === "buka";
+      semua().forEach(function (d) { d.open = buka; });
+    });
+  });
+  function bukaDariAlamat() {
+    var d = location.hash && document.getElementById(location.hash.slice(1));
+    if (d && d.matches("details.rombel")) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  }
+  window.addEventListener("hashchange", bukaDariAlamat);
+  bukaDariAlamat();
+})();
+</script>
 {% endblock %}
