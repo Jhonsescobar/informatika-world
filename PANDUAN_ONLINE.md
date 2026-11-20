@@ -7,12 +7,15 @@ jadi web tetap rapi walau internet sekolah lambat atau putus.
 
 1. Pasang paket baru: `venv\Scripts\activate` lalu `pip install -r requirements.txt`
 2. Perbarui database: `alembic upgrade head`
-3. Ganti password guru (di web: menu **Akun**, atau `python ganti_password_guru.py`)
+3. Ganti password guru. Selama masih memakai password bawaan (`guru123`), web memaksa Anda ke menu **Akun** dan mengunci menu lain sampai password diganti (atau `python ganti_password_guru.py`)
 4. Untuk mode internet: unduh `cloudflared-windows-amd64.exe` dari
    https://github.com/cloudflare/cloudflared/releases/latest, ganti nama jadi `cloudflared.exe`,
    taruh di `D:\informatika-world`
-5. (Disarankan) Salinan cadangan ke awan: pasang Google Drive for desktop, lalu tambahkan ke `.env`:
-   `BACKUP_COPY_DIR=G:\My Drive\Backup Informatika` (sesuaikan huruf drive)
+5. (Disarankan) Salinan cadangan ke awan, selalu **terenkripsi**:
+   1. Jalankan sekali `python buat_kunci_cadangan.py`, pilih frasa sandi (min. 10 karakter).
+   2. Pindahkan `KUNCI_PRIBADI_cadangan.pem` ke flashdisk / penyimpan sandi, **lalu hapus dari laptop**. Catat frasa sandinya di tempat terpisah. Tanpa keduanya cadangan di awan tidak bisa dibuka siapa pun.
+   3. Pasang Google Drive for desktop, lalu tambahkan ke `.env`: `BACKUP_COPY_DIR=G:\My Drive\Backup Informatika` (sesuaikan huruf drive)
+   Tanpa langkah 1, salinan ke awan dilewati (data siswa tidak pernah dikirim tanpa enkripsi).
 
 ## Setiap sesi ujian
 
@@ -28,7 +31,11 @@ jadi web tetap rapi walau internet sekolah lambat atau putus.
 
 Cadangan dibuat otomatis **sebelum dan sesudah** sesi di folder `backups\`:
 `informatika_*.dump` (database utuh) dan `nilai_*.xlsx` (rekap nilai, bisa langsung dibuka Excel).
-30 cadangan terbaru disimpan.
+30 cadangan terbaru disimpan. Salinan di folder awan berakhiran `.enc` dan hanya 30 terbaru yang disimpan.
+
+**Uji cadangan sebulan sekali:** `python uji_pemulihan.py` memulihkan cadangan terbaru ke database sementara, membandingkan jumlah data dengan yang sekarang, lalu membuangnya. Database asli tidak disentuh. Untuk menguji salinan di awan: `python uji_pemulihan.py "G:\My Drive\Backup Informatika\informatika_....dump.enc"` (diminta lokasi kunci pribadi dan frasa sandi).
+
+**Catatan aksi guru:** menu **Akun → Lihat catatan aksi guru** menampilkan riwayat reset PIN, hapus siswa, ubah nilai, remedial, beri kesempatan, ubah KKM, dan hapus ujian/bank soal. Hanya bisa dibaca.
 
 ## Kalau ada masalah
 
@@ -38,6 +45,7 @@ Cadangan dibuat otomatis **sebelum dan sesudah** sesi di folder `backups\`:
 | Siswa lupa PIN / PIN terkunci 5x salah | Menu Siswa → **Reset PIN** pada nama siswa (atau centang beberapa → Reset PIN). PIN baru tampil sekali |
 | Siswa terlempar saat ujian | Login lagi, buka ujian: jawaban yang sudah dipilih kembali otomatis |
 | Data rusak / terhapus tidak sengaja | Matikan web (Q), jalankan `python pulihkan_db.py`, pilih cadangan, ketik `PULIHKAN`. Keadaan sebelum dipulihkan disimpan dulu di `backups\pengaman_*.dump` |
+| Laptop hilang / rusak, cadangan hanya di Drive | Di laptop baru: pasang proyek + PostgreSQL, ambil kunci pribadi dari flashdisk, jalankan `python pulihkan_db.py "<berkas>.dump.enc"`, isi lokasi kunci dan frasa sandi, ketik `PULIHKAN` |
 | Tunnel tidak muncul | Internet laptop bermasalah. Jalankan ulang, pilih mode 2 (lokal) |
 
 ## Batasan yang perlu diketahui

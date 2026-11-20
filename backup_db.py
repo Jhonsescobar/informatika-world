@@ -11,6 +11,10 @@
 # Agar cadangan juga ada di luar laptop, isi BACKUP_COPY_DIR di file .env dengan folder yang
 # tersinkron ke awan, misalnya folder Google Drive / OneDrive:
 #   BACKUP_COPY_DIR=G:\My Drive\Backup Informatika
+# Salinan di awan SELALU dienkripsi (berakhiran .enc) dengan kunci publik: jalankan sekali
+#   python buat_kunci_cadangan.py
+# Tanpa kunci itu, salinan ke awan dilewati (data siswa tidak pernah dikirim tanpa enkripsi).
+# Membuka salinan terenkripsi: python pulihkan_db.py "<berkas>.dump.enc"   (butuh kunci pribadi + frasa sandi)
 
 import glob
 import os
@@ -57,17 +61,58 @@ def rapikan(pola: str):
             pass
 
 
-def salin_ke_awan(berkas: list[Path]):
+def rapikan_awan(folder: Path):
+    """Simpan SIMPAN salinan terenkripsi terbaru per jenis; hanya menyentuh berkas buatan aplikasi ini (*.enc)."""
+    for pola in ("informatika_*.dump.enc", "nilai_*.xlsx.enc"):
+        for f in sorted(folder.glob(pola))[:-SIMPAN]:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def sisa_tanpa_enkripsi(folder: Path) -> list[Path]:
+    """Salinan lama (sebelum ada enkripsi) yang masih tergeletak polos di folder awan."""
+    return sorted(f for pola in ("informatika_*.dump", "nilai_*.xlsx", "pengaman_*.dump") for f in folder.glob(pola))
+
+
+def salin_ke_awan(berkas: list[Path]) -> bool:
+    """Salin terenkripsi ke BACKUP_COPY_DIR. True bila tidak ada yang perlu disalin atau semuanya berhasil."""
     tujuan = os.getenv("BACKUP_COPY_DIR", "").strip()
     if not tujuan:
-        return
+        return True
     try:
-        Path(tujuan).mkdir(parents=True, exist_ok=True)
+        from cadangan_aman import GalatEnkripsi, enkripsi_berkas, muat_kunci_publik
+    except ImportError:   # cadangan lokal tetap jalan; salinan awan menunggu paketnya terpasang
+        print("  ! Salinan ke awan DILEWATI: paket 'cryptography' belum terpasang. Jalankan: pip install -r requirements.txt")
+        return False
+    kunci = muat_kunci_publik()
+    if kunci is None:
+        print("  ! Salinan ke awan DILEWATI: belum ada kunci enkripsi (data siswa tidak dikirim tanpa enkripsi).")
+        print("    Buat sekali dengan: python buat_kunci_cadangan.py")
+        return False
+    folder = Path(tujuan)
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
         for f in berkas:
-            shutil.copy2(f, Path(tujuan) / f.name)
-        print(f"  disalin juga ke {tujuan}")
-    except OSError as e:
+            enkripsi_berkas(f, folder / (f.name + ".enc"), kunci)
+        rapikan_awan(folder)
+        print(f"  disalin terenkripsi ke {tujuan}")
+        polos = sisa_tanpa_enkripsi(folder)
+        if polos:
+            print(f"  ! {len(polos)} salinan LAMA di folder itu belum terenkripsi (mis. {polos[0].name}). Hapus manual dari Drive.")
+        return True
+    except (OSError, GalatEnkripsi) as e:
         print(f"  ! gagal menyalin ke {tujuan}: {e}")
+        return False
+
+
+def dump_terbaca(dump: Path) -> bool:
+    """Pemeriksaan cepat: daftar isi dump bisa dibaca pg_restore (berkas terpotong/rusak langsung ketahuan)."""
+    pg_restore = cari_program("pg_restore")
+    if not pg_restore:
+        return True   # tidak bisa memeriksa; jangan menggagalkan cadangan hanya karena itu
+    return subprocess.run([pg_restore, "--list", str(dump)], capture_output=True).returncode == 0
 
 
 def backup_db(stempel: str, awalan: str = "informatika") -> Path | None:
@@ -81,6 +126,10 @@ def backup_db(stempel: str, awalan: str = "informatika") -> Path | None:
                             env=env, capture_output=True, text=True)
     if proses.returncode != 0:
         print("  ! pg_dump gagal:", proses.stderr.strip()[:300])
+        hasil.unlink(missing_ok=True)
+        return None
+    if not dump_terbaca(hasil):
+        print("  ! cadangan database tidak terbaca (rusak). Dibuang.")
         hasil.unlink(missing_ok=True)
         return None
     print(f"  database   -> backups/{hasil.name} ({hasil.stat().st_size // 1024} KB)")
@@ -121,11 +170,11 @@ def main() -> int:
     rapikan("informatika_*.dump")
     rapikan("nilai_*.xlsx")
     rapikan("pengaman_*.dump")
-    salin_ke_awan(dibuat)
+    awan_ok = salin_ke_awan(dibuat)
     if not any(f.suffix == ".dump" for f in dibuat):
         print("Cadangan database GAGAL. Web tetap bisa dipakai, tapi perbaiki sebelum ujian penting.")
         return 1
-    print("Cadangan selesai.")
+    print("Cadangan selesai." + ("" if awan_ok else " (salinan ke awan belum berhasil, lihat pesan di atas)"))
     return 0
 
 

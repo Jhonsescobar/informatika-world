@@ -27,6 +27,11 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # Mengatur passlib untuk menggunakan algoritma Argon2.
 # Argon2 adalah pemenang kompetisi hashing, sangat aman dari serangan hacker.
 
+# Sandi yang tidak boleh dipakai guru. "guru123" = sandi bawaan dari seed.
+SANDI_BAWAAN = "guru123"
+PASSWORD_UMUM = {SANDI_BAWAAN, "password", "12345678", "123456789", "guru1234", "informatika", "qwertyui", "admin123", "password1"}
+
+
 def hash_password(password: str) -> str:
     # Fungsi untuk mengubah password/PIN mentah menjadi teks acak (hash)
     return pwd_context.hash(password)

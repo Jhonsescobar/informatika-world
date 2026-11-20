@@ -13,6 +13,7 @@ from app.models.academic import Rombel, SchoolClass
 from app.models.exam import Exam, ExamSession
 from app.models.student import Student
 from app.routers.teacher import TINGKAT, kelas_aktif, templates_env, unduh_xlsx
+from app.services import audit
 from app.services.analisis import analisis_butir
 from app.services.excel import buku_remedial
 from app.services.kesempatan import beri_kesempatan
@@ -107,6 +108,10 @@ async def beri_kesempatan_lanjut(exam_id: int, session_id: int, request: Request
     sesi = (db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.exam_id == exam_id)
             .with_for_update().first())
     ok = bool(sesi) and beri_kesempatan(db, sesi)
+    if ok:
+        nama = db.query(Student.name).filter(Student.id == sesi.student_id).scalar()
+        judul = db.query(Exam.title).filter(Exam.id == exam_id).scalar()
+        audit.catat(db, user, "Nilai", "Beri kesempatan", f"{nama} · {judul}", "sesi dibuka lagi, jawaban dipertahankan")
     db.commit()
     kembali = f"/teacher/exams/{exam_id}/results"
     return RedirectResponse(url=f"{kembali}?pesan={'lanjut' if ok else 'lanjut_gagal'}", status_code=303)

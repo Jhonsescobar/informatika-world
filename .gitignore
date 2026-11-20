@@ -39,3 +39,9 @@ backups/
 
 # Log server dari ONLINE.bat
 logs/
+
+# Kunci pribadi cadangan: JANGAN pernah ke GitHub (simpan di luar laptop)
+KUNCI_PRIBADI_*.pem
+
+# Cadangan berkas lama saat pemasangan paket
+_cadangan_pasang/

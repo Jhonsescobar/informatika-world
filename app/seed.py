@@ -40,7 +40,8 @@ def seed_database():
             full_name="Guru Informatika",
             hashed_password=hashed_pwd,
             role="teacher",
-            is_active=True
+            is_active=True,
+            must_change_password=True,   # sandi bawaan: guru wajib menggantinya saat pertama masuk
         )
         db.add(guru)
         # Menambahkan data guru ke sesi database

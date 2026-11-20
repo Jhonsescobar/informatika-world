@@ -20,17 +20,23 @@ def get_current_user(request: Request):
     return payload
 
 
-def _akun_aktif(model, payload, kolom_hash: str) -> bool:
+def _akun_sah(model, payload, kolom_hash: str):
     # Akun yang dihapus/dinonaktifkan, atau yang password/PIN-nya sudah diganti, langsung keluar
-    # walau tokennya belum kedaluwarsa.
+    # walau tokennya belum kedaluwarsa. Mengembalikan akunnya (kolom sudah terbaca) atau None.
     db = SessionLocal()
     try:
         akun = db.query(model).filter(model.id == int(payload.get("sub"))).first()
-        return bool(akun and akun.is_active and payload.get("v") == sidik(getattr(akun, kolom_hash)))
+        if akun and akun.is_active and payload.get("v") == sidik(getattr(akun, kolom_hash)):
+            return akun
+        return None
     except (TypeError, ValueError):
-        return False
+        return None
     finally:
         db.close()
+
+
+# Selama guru masih memakai sandi bawaan, hanya dua alamat ini yang boleh dibuka.
+BOLEH_SAAT_WAJIB_GANTI = ("/teacher/account", "/teacher/account/password")
 
 
 def require_teacher(request: Request):
@@ -38,8 +44,12 @@ def require_teacher(request: Request):
     user = get_current_user(request)
     if user.get("role") != "teacher":
         raise HTTPException(status_code=403, detail="Akses ditolak!")
-    if not _akun_aktif(User, user, "hashed_password"):
+    akun = _akun_sah(User, user, "hashed_password")
+    if not akun:
         raise ke_login()
+    if akun.must_change_password and request.url.path.rstrip("/") not in BOLEH_SAAT_WAJIB_GANTI:
+        raise HTTPException(status_code=303, detail="Ganti sandi dulu",
+                            headers={"Location": "/teacher/account?pesan=wajib"})
     return user
 
 
@@ -48,6 +58,6 @@ def require_student(request: Request):
     user = get_current_user(request)
     if user.get("role") != "student":
         raise HTTPException(status_code=403, detail="Akses ditolak!")
-    if not _akun_aktif(Student, user, "pin_hash"):
+    if not _akun_sah(Student, user, "pin_hash"):
         raise ke_login()
     return user

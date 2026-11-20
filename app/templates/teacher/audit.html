@@ -1,0 +1,49 @@
+{% extends "layouts/teacher.html" %}
+{% from "layouts/icons.html" import icon %}
+{% set active = 'account' %}
+{% block title %}Catatan aksi · Informatika World{% endblock %}
+{% block back %}<a href="/teacher/account" class="back-link">{{ icon('arrow-left') }}Akun</a>{% endblock %}
+{% block eyebrow %}Akun guru{% endblock %}
+{% block heading %}Catatan <em>aksi</em>{% endblock %}
+{% block lead %}<p class="lead">Riwayat tindakan yang mengubah data: reset PIN, hapus siswa, ubah nilai, remedial, dan beri kesempatan. Hanya bisa dibaca, tidak bisa diubah dari web.</p>{% endblock %}
+{% block content %}
+<div class="stack">
+  <nav class="flex flex-wrap items-center gap-2" aria-label="Saring kategori">
+    <a href="/teacher/account/catatan" class="chip{{ ' chip-teal' if not kategori }}" style="text-decoration:none">Semua</a>
+    {% for k in kategori_pilihan %}<a href="/teacher/account/catatan?kategori={{ k }}" class="chip{{ ' chip-teal' if kategori == k }}" style="text-decoration:none">{{ k }}</a>{% endfor %}
+    <span class="ml-auto text-xs dim">{{ total }} catatan</span>
+  </nav>
+
+  <section class="panel panel-tight" aria-label="Daftar catatan aksi">
+    {% if baris %}
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead><tr><th>Waktu</th><th>Aksi</th><th>Sasaran</th><th>Rincian</th><th class="hidden md:table-cell">Oleh</th></tr></thead>
+        <tbody>
+          {% for b in baris %}
+          <tr>
+            <td class="dim" style="white-space:nowrap">{{ b.catatan.waktu.astimezone().strftime('%d/%m %H:%M') }}</td>
+            <td><span class="chip" style="margin-right:8px">{{ b.catatan.kategori }}</span>{{ b.catatan.aksi|e }}</td>
+            <td>{{ b.catatan.sasaran|e }}</td>
+            <td class="dim">{{ b.catatan.rincian|e }}</td>
+            <td class="dim hidden md:table-cell">{{ b.oleh|e }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="dim" style="padding:22px">Belum ada catatan{{ ' untuk kategori ini' if kategori }}. Aksi guru yang berdampak pada data akan muncul di sini.</p>
+    {% endif %}
+  </section>
+
+  {% if halaman > 1 or ada_lanjut %}
+  <p class="flex gap-3 text-sm">
+    {% set dasar = '/teacher/account/catatan?' ~ ('kategori=' ~ kategori ~ '&' if kategori else '') ~ 'hal=' %}
+    {% if halaman > 1 %}<a class="link-action is-teal" href="{{ dasar ~ (halaman - 1) }}">← Lebih baru</a>{% endif %}
+    <span class="dim">Halaman {{ halaman }}</span>
+    {% if ada_lanjut %}<a class="link-action is-teal" href="{{ dasar ~ (halaman + 1) }}">Lebih lama →</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

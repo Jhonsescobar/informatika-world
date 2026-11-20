@@ -30,6 +30,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     # Kolom status aktif. Defaultnya True (aktif)
 
+    must_change_password = Column(Boolean, nullable=False, default=False, server_default="false")
+    # True selama guru masih memakai sandi bawaan: semua menu terkunci sampai sandi diganti
+
     role = Column(String, default="teacher")
     # Kolom peran: "teacher" atau "admin". Defaultnya guru
 

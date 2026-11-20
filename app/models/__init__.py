@@ -5,6 +5,7 @@
 # karena relationship("Student") di Enrollment butuh model Student sudah terdaftar.
 from app.models import (  # noqa: F401
     academic,
+    aksi_guru,
     achievement,
     exam,
     grade,

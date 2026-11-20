@@ -25,6 +25,9 @@ passlib[argon2]
 # Pydantic: Untuk memvalidasi data masuk (sudah bawaan FastAPI, tapi kita pastikan)
 pydantic
 
+# Cryptography: enkripsi cadangan yang disalin ke Google Drive / OneDrive
+cryptography
+
 # Python-multipart: Agar FastAPI bisa membaca data dari form HTML
 python-multipart
 

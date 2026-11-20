@@ -38,7 +38,8 @@ from app.models.student import Student
 # Mengimpor model Grade dan ExamSession
 # Mengimpor satpam khusus guru
 from app.models.student import Student
-from app.utils.security import hash_password, verify_password, create_access_token, sidik
+from app.utils.security import PASSWORD_UMUM, hash_password, verify_password, create_access_token, sidik
+from app.services import audit
 from app.utils import ratelimit
 
 from app.models.user import User
@@ -486,10 +487,13 @@ async def set_kkm_ujian(exam_id: int, request: Request, db: Session = Depends(ge
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         return RedirectResponse(url="/teacher/exams", status_code=303)
+    lama = exam.kkm
     try:
         exam.kkm = _baca_kkm(form.get("kkm"))
     except ValueError:
         return RedirectResponse(url="/teacher/exams?error=kkm", status_code=303)
+    if exam.kkm != lama:
+        audit.catat(db, user, "Nilai", "Ubah KKM ujian", exam.title, f"{lama if lama is not None else 'ikut default'} → {exam.kkm if exam.kkm is not None else 'ikut default'}")
     db.commit()
     return RedirectResponse(url="/teacher/exams?pesan=kkm", status_code=303)
 
@@ -647,10 +651,13 @@ async def set_kkm_komponen(comp_id: int, request: Request, db: Session = Depends
     comp = db.query(ScoreComponent).filter(ScoreComponent.id == comp_id).first()
     if not comp:
         return RedirectResponse(url="/teacher/grades", status_code=303)
+    lama = comp.kkm
     try:
         comp.kkm = _baca_kkm(form.get("kkm"))
     except ValueError:
         return RedirectResponse(url="/teacher/grades?error=kkm", status_code=303)
+    if comp.kkm != lama:
+        audit.catat(db, user, "Nilai", "Ubah KKM komponen", comp.name, f"{lama if lama is not None else 'ikut default'} → {comp.kkm if comp.kkm is not None else 'ikut default'}")
     db.commit()
     return RedirectResponse(url="/teacher/grades?pesan=kkm", status_code=303)
 
@@ -721,6 +728,7 @@ async def delete_exam(exam_id: int, db: Session = Depends(get_db), user=Depends(
             db.query(ExamViolation).filter(ExamViolation.session_id.in_(session_ids)).delete(synchronize_session=False)
             db.query(ExamAnswer).filter(ExamAnswer.session_id.in_(session_ids)).delete(synchronize_session=False)
         db.query(ExamSession).filter(ExamSession.exam_id == exam_id).delete(synchronize_session=False)
+        audit.catat(db, user, "Ujian", "Hapus ujian", exam.title, f"{len(session_ids)} sesi pengerjaan ikut terhapus")
         db.delete(exam)
         db.commit()
     return RedirectResponse(url="/teacher/exams", status_code=303)
@@ -759,6 +767,8 @@ async def delete_bank(bank_id: int, db: Session = Depends(get_db), user=Depends(
             db.query(Question).filter(Question.id.in_(question_ids)).delete(synchronize_session=False)
         
         # 5. Terakhir, hapus bank soalnya
+        audit.catat(db, user, "Ujian", "Hapus bank soal", bank.title,
+                    f"{len(question_ids)} soal, {len(exam_ids)} ujian ikut terhapus")
         db.delete(bank)
         db.commit()
         
@@ -783,20 +793,22 @@ def halaman_pin(request, daftar, user, judul="siap login", reset=False):
     return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 
-def reset_pin_siswa(db, ids):
+def reset_pin_siswa(db, ids, user=None):
     hasil = []
     for siswa in db.query(Student).filter(Student.id.in_(ids)).order_by(Student.name):
         pin = pin_baru()
         siswa.pin_hash = hash_password(pin)   # token lama siswa ikut gugur (sidik berubah)
         ratelimit.reset(f"siswa:{siswa.id}")  # kunci 5x salah dibuka
         hasil.append({"name": siswa.name, "pin": pin})
+    if hasil:   # PIN-nya sendiri tidak pernah dicatat
+        audit.catat(db, user, "Siswa", "Reset PIN", f"{len(hasil)} siswa", audit.daftar_nama([h["name"] for h in hasil]))
     db.commit()
     return hasil
 
 
 @router.post("/students/{student_id}/reset-pin")
 async def reset_pin(student_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
-    daftar = await run_in_threadpool(reset_pin_siswa, db, [student_id])
+    daftar = await run_in_threadpool(reset_pin_siswa, db, [student_id], user)
     if not daftar:
         return RedirectResponse(url="/teacher/students", status_code=303)
     return halaman_pin(request, daftar, user, judul="PIN baru", reset=True)
@@ -821,12 +833,25 @@ async def status_qr(request: Request, user=Depends(require_teacher)):
 
 
 @router.get("/account", response_class=HTMLResponse)
-async def account_page(request: Request, user=Depends(require_teacher)):
+async def account_page(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     template = templates_env.get_template("teacher/account.html")
-    return HTMLResponse(content=template.render(request=request, user=user, pesan=request.query_params.get("pesan")))
+    akun = db.query(User).filter(User.id == int(user.get("sub"))).first()
+    wajib = bool(akun and akun.must_change_password)
+    return HTMLResponse(content=template.render(request=request, user=user, pesan=request.query_params.get("pesan"), wajib=wajib))
 
 
-PASSWORD_UMUM = {"password", "12345678", "123456789", "guru1234", "informatika", "qwertyui", "admin123", "password1"}
+@router.get("/account/catatan", response_class=HTMLResponse)
+async def catatan_aksi(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    """Riwayat aksi guru yang berdampak pada data. Hanya baca."""
+    try:
+        halaman = int(request.query_params.get("hal", "1"))
+    except ValueError:
+        halaman = 1
+    data = audit.baca(db, request.query_params.get("kategori"), halaman)
+    template = templates_env.get_template("teacher/audit.html")
+    return HTMLResponse(content=template.render(request=request, user=user, kategori_pilihan=audit.KATEGORI,
+                                                per_halaman=audit.PER_HALAMAN, **data))
+
 
 @router.post("/account/password")
 async def change_password(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
@@ -849,6 +874,8 @@ async def change_password(request: Request, db: Session = Depends(get_db), user=
     hash_baru = await run_in_threadpool(hash_password, baru)
     akun = db.query(User).filter(User.id == int(user.get("sub"))).first()
     akun.hashed_password = hash_baru
+    akun.must_change_password = False
+    audit.catat(db, user, "Akun", "Ganti sandi", akun.email)
     db.commit()
     # perangkat lain yang masih login otomatis keluar; perangkat ini diberi karcis baru
     from app.routers.auth import pasang_cookie_login
@@ -896,6 +923,10 @@ async def bulk_create_students(request: Request, db: Session = Depends(get_db), 
         # Simpan nama + PIN plain text untuk ditampilkan ke guru
         created_students.append({"name": name, "pin": pin})
     
+    if created_students:
+        audit.catat(db, user, "Siswa", "Tambah siswa massal", f"{len(created_students)} siswa",
+                    ((f"rombel {rombel.rombel_name}; " if rombel else "") + audit.daftar_nama([c["name"] for c in created_students])))
+        db.commit()
     # Render halaman khusus untuk menampilkan hasil PIN
     return halaman_pin(request, created_students, user)
 
@@ -1014,10 +1045,17 @@ async def override_essay_score(answer_id: int, request: Request, db: Session = D
     sesi = db.query(ExamSession).filter(ExamSession.id == jawaban.session_id).first()
     soal = db.query(Question).filter(Question.id == jawaban.question_id).first()
     teks = (form.get("points") or "").strip().replace(",", ".")
+    sebelum = jawaban.manual_points
     try:
         jawaban.manual_points = None if teks == "" else max(0.0, min(float(soal.points or 0), float(teks)))
     except ValueError:
         pass
+    if jawaban.manual_points != sebelum:
+        nama = db.query(Student.name).filter(Student.id == sesi.student_id).scalar()
+        judul = db.query(Exam.title).filter(Exam.id == sesi.exam_id).scalar()
+        lama = "otomatis" if sebelum is None else f"{sebelum:g}"
+        baru = "otomatis" if jawaban.manual_points is None else f"{jawaban.manual_points:g}"
+        audit.catat(db, user, "Nilai", "Ubah poin esai", f"{nama} · {judul}", f"poin {lama} → {baru}")
     hitung_ulang_skor(db, sesi)
     db.commit()
     return RedirectResponse(url=f"/teacher/exams/{sesi.exam_id}/sessions/{sesi.id}?tersimpan=1#soal-{soal.id}", status_code=303)
@@ -1044,6 +1082,7 @@ async def recalc_essays(exam_id: int, db: Session = Depends(get_db), user=Depend
         db.flush()
         for sesi in db.query(ExamSession).filter(ExamSession.id.in_(sesi_ids)):
             hitung_ulang_skor(db, sesi)
+        audit.catat(db, user, "Nilai", "Hitung ulang esai", exam.title, f"{berubah} poin berubah dari {len(sesi_ids)} sesi")
         db.commit()
     return RedirectResponse(url=f"/teacher/exams/{exam_id}/results?pesan=hitung&n={berubah}", status_code=303)
 
@@ -1054,6 +1093,9 @@ async def grant_remedial(exam_id: int, session_id: int, db: Session = Depends(ge
     sesi = db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.exam_id == exam_id).first()
     if sesi and sesi.status != "active":
         beri_remedial(db, exam_id, sesi.student_id, sesi.id)
+        nama = db.query(Student.name).filter(Student.id == sesi.student_id).scalar()
+        judul = db.query(Exam.title).filter(Exam.id == exam_id).scalar()
+        audit.catat(db, user, "Nilai", "Beri remedial", f"{nama} · {judul}")
         db.commit()
     return RedirectResponse(url=f"/teacher/exams/{exam_id}/results", status_code=303)
 
@@ -1067,6 +1109,9 @@ async def decide_remedial(request_id: int, keputusan: str, db: Session = Depends
     if permintaan.status == "pending":
         permintaan.status = "approved" if keputusan == "approve" else "rejected"
         permintaan.decided_at = datetime.now(timezone.utc)
+        nama = db.query(Student.name).filter(Student.id == permintaan.student_id).scalar()
+        judul = db.query(Exam.title).filter(Exam.id == permintaan.exam_id).scalar()
+        audit.catat(db, user, "Nilai", "Setujui remedial" if keputusan == "approve" else "Tolak remedial", f"{nama} · {judul}")
         db.commit()
     return RedirectResponse(url=f"/teacher/exams/{permintaan.exam_id}/results", status_code=303)
 
@@ -1118,6 +1163,7 @@ async def create_student(request: Request, db: Session = Depends(get_db), user=D
         is_active=True
     )
     db.add(new_student)
+    audit.catat(db, user, "Siswa", "Tambah siswa", nama)
     db.commit()
     return RedirectResponse(url="/teacher/students", status_code=303)
 
@@ -1192,9 +1238,11 @@ async def delete_students(request: Request, db: Session = Depends(get_db), user=
         return RedirectResponse(url=f"/teacher/students/delete?ids={','.join(map(str, ids))}&error=konfirmasi", status_code=303)
     try:
         # Semua dalam satu transaksi: gagal satu, batal semua
+        nama = [n for (n,) in db.query(Student.name).filter(Student.id.in_(ids)).order_by(Student.name)]
         for q in data_terkait_siswa(db, ids).values():
             q.delete(synchronize_session=False)
         n = db.query(Student).filter(Student.id.in_(ids)).delete(synchronize_session=False)
+        audit.catat(db, user, "Siswa", "Hapus siswa", f"{n} siswa", audit.daftar_nama(nama))
         db.commit()
     except Exception:
         db.rollback()
@@ -1221,18 +1269,22 @@ async def bulk_students(request: Request, db: Session = Depends(get_db), user=De
         return RedirectResponse(url=kembali, status_code=303)
 
     if aksi == "reset_pin":
-        return halaman_pin(request, await run_in_threadpool(reset_pin_siswa, db, ids), user, judul="PIN baru", reset=True)
+        return halaman_pin(request, await run_in_threadpool(reset_pin_siswa, db, ids, user), user, judul="PIN baru", reset=True)
 
     if aksi == "delete":
         return RedirectResponse(url=f"/teacher/students/delete?ids={','.join(map(str, ids))}", status_code=303)
 
     if aksi in ("deactivate", "activate"):
         n = db.query(Student).filter(Student.id.in_(ids)).update({Student.is_active: aksi == "activate"}, synchronize_session=False)
+        nama = [x for (x,) in db.query(Student.name).filter(Student.id.in_(ids)).order_by(Student.name)]
+        audit.catat(db, user, "Siswa", "Aktifkan siswa" if aksi == "activate" else "Nonaktifkan siswa", f"{n} siswa", audit.daftar_nama(nama))
         db.commit()
         return RedirectResponse(url=f"{kembali}{sambung}pesan={'aktif' if aksi == 'activate' else 'nonaktif'}&n={n}", status_code=303)
 
     if aksi == "unenroll":
+        nama = [x for (x,) in db.query(Student.name).filter(Student.id.in_(ids)).order_by(Student.name)]
         db.query(Enrollment).filter(Enrollment.student_id.in_(ids)).delete(synchronize_session=False)
+        audit.catat(db, user, "Siswa", "Keluarkan dari rombel", f"{len(ids)} siswa", audit.daftar_nama(nama))
         db.commit()
         return RedirectResponse(url=f"{kembali}{sambung}pesan=keluar&n={len(ids)}", status_code=303)
 
@@ -1255,6 +1307,7 @@ async def bulk_students(request: Request, db: Session = Depends(get_db), user=De
         else:
             db.add(Enrollment(student_id=sid, rombel_id=rombel.id, academic_year_id=tahun.id))
         n += 1
+    audit.catat(db, user, "Siswa", "Pindah rombel", f"{n} siswa", f"ke {rombel.rombel_name}")
     db.commit()
     return RedirectResponse(url=f"/teacher/students?rombel={rombel.id}&pesan=pindah&n={n}&r={rombel.id}", status_code=303)
 
@@ -1264,5 +1317,6 @@ async def toggle_student_active(student_id: int, db: Session = Depends(get_db), 
     student = db.query(Student).filter(Student.id == student_id).first()
     if student:
         student.is_active = not student.is_active
+        audit.catat(db, user, "Siswa", "Aktifkan siswa" if student.is_active else "Nonaktifkan siswa", student.name)
         db.commit()
     return RedirectResponse(url="/teacher/students", status_code=303)

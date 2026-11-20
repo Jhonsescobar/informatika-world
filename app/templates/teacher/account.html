@@ -3,6 +3,7 @@
 {% set active = 'account' %}
 {% set teks = {
   'ok': ('', 'Password berhasil diganti. Perangkat lain yang masih login sudah otomatis keluar.'),
+  'wajib': None,
   'lama': ('notice-amber', 'Password lama salah.'),
   'beda': ('notice-amber', 'Password baru dan ulangannya tidak sama.'),
   'lemah': ('notice-amber', 'Password baru minimal 8 karakter, tidak boleh sama dengan yang lama, dan jangan yang mudah ditebak.'),
@@ -14,7 +15,10 @@
 {% block lead %}<p class="lead">Setelah diganti, semua perangkat lain yang masih login dengan password lama otomatis keluar.</p>{% endblock %}
 {% block content %}
 <div class="stack" style="max-width:520px">
-  {% if pesan in teks %}
+  {% if wajib %}
+  <div class="notice notice-amber" role="alert">{{ icon('info') }}<span><b>Ganti password dulu sebelum lanjut.</b> Password bawaan (<span class="mono">guru123</span>) diketahui siapa saja, dan web ini bisa dibuka dari internet. Setelah diganti, semua menu guru terbuka kembali.</span></div>
+  {% endif %}
+  {% if pesan in teks and teks[pesan] %}
   <div class="notice {{ teks[pesan][0] }}" role="status">{{ icon('check' if pesan == 'ok' else 'info') }}<span>{{ teks[pesan][1] }}</span></div>
   {% endif %}
   <section class="panel">
@@ -28,6 +32,7 @@
       <button type="submit" class="btn btn-primary mt-1">{{ icon('lock') }}Simpan password baru</button>
     </form>
   </section>
+  {% if not wajib %}<p class="text-sm"><a href="/teacher/account/catatan" class="link-action is-teal">Lihat catatan aksi guru {{ icon('arrow-right') }}</a></p>{% endif %}
   <p class="text-xs dim">Lupa password? Jalankan <span class="mono">python ganti_password_guru.py</span> di laptop server.</p>
 </div>
 {% endblock %}

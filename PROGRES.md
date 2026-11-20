@@ -179,6 +179,13 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Guru bisa membuka lagi sesi yang terkirim otomatis (mis. keluar layar tak sengaja): tombol "Beri kesempatan" di hasil ujian. Jawaban tetap, waktu memakai sisa waktu (minimal 3 menit), hitungan pelanggaran mulai dari nol, catatan pelanggaran lama tetap ada. Logika di `services/kesempatan.py`.
 - Hanya untuk sesi kirim otomatis yang masih punya sisa waktu dan belum punya sesi lebih baru.
 
+## Keamanan prioritas tinggi (20 Nov 2026)
+- Sandi bawaan: kolom `users.must_change_password` (migrasi `b9e4d7a1c2f6`; akun yang saat migrasi masih ber-sandi `guru123` otomatis ditandai). Selama True, `require_teacher` mengalihkan semua alamat guru selain `/teacher/account` dan `/teacher/account/password` ke halaman Akun (303). Daftar sandi terlarang satu sumber: `PASSWORD_UMUM` di `utils/security.py` (termasuk `guru123`).
+- Catatan aksi guru: tabel `aksi_guru`, `services/audit.py` (`catat` sebelum `commit`, atomik dengan aksinya), halaman `/teacher/account/catatan` (saring kategori, 50 per halaman, hanya baca). Dicatat: reset PIN, tambah/hapus/aktif/nonaktif/pindah/keluarkan siswa, ubah poin esai, hitung ulang esai, remedial, beri kesempatan, ubah KKM, hapus ujian/bank soal, ganti sandi. PIN dan sandi TIDAK pernah dicatat.
+- Cadangan awan terenkripsi: `cadangan_aman.py` (RSA-4096 + AES-256-GCM per berkas; laptop hanya menyimpan kunci publik), `buat_kunci_cadangan.py` (sekali), salinan `.enc` hanya 30 terbaru. Tanpa kunci publik salinan awan dilewati. `pulihkan_db.py` dan `uji_pemulihan.py` menerima berkas `.enc`.
+- `uji_pemulihan.py`: pulihkan ke database sementara `<db>_uji_pulih`, bandingkan jumlah baris tiap tabel, lalu dibuang. `backup_db.py` kini membuang dump yang tak terbaca `pg_restore --list`.
+- `cryptography` ditambahkan ke requirements.txt (UPDATE.bat memasangnya otomatis).
+
 ## Hasil ujian: panel rombel bisa dilipat (20 Nov 2026)
 - Tiap rombel jadi satu baris ringkas (jumlah siswa, rata-rata dengan bar, tuntas, pelanggaran); tabel siswa hanya tampil saat dibuka. Rombel pertama terbuka, lainnya tertutup.
 - Tombol "Buka semua"/"Tutup semua"; klik chip rombel membuka dan menggulir ke rombel itu (juga lewat alamat `#rombel-VII-2`). Memakai `<details>` bawaan browser, bisa lewat keyboard.

@@ -9,7 +9,7 @@ import sys
 
 from app.database import SessionLocal
 from app.models.user import User
-from app.utils.security import hash_password, verify_password
+from app.utils.security import PASSWORD_UMUM, hash_password, verify_password
 
 MIN_PANJANG = 8
 
@@ -34,7 +34,7 @@ def main():
         if len(baru) < MIN_PANJANG:
             print(f"Password minimal {MIN_PANJANG} karakter. Tidak ada yang diubah.")
             return 1
-        if baru.lower() in ("guru123", "password", "12345678", "informatika"):
+        if baru.lower() in PASSWORD_UMUM:
             print("Password terlalu mudah ditebak. Tidak ada yang diubah.")
             return 1
         if getpass.getpass("Ulangi password baru: ") != baru:
@@ -42,6 +42,7 @@ def main():
             return 1
 
         akun.hashed_password = hash_password(baru)
+        akun.must_change_password = False
         db.commit()
         if not verify_password(baru, akun.hashed_password):
             print("Gagal memverifikasi password baru.")
