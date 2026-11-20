@@ -1,63 +1,137 @@
 # app/services/kesempatan.py
-# Kesempatan melanjutkan ujian: guru membuka kembali sesi yang terkirim otomatis karena pelanggaran
-# (misalnya jaringan putus atau layar tak sengaja keluar). Jawaban siswa tetap, waktu memakai sisa waktunya.
+# Kesempatan melanjutkan ujian: guru membuka kembali sesi yang berhenti sebelum waktunya habis.
+# Dua sebab yang dikenali sistem:
+#   - "otomatis": terkirim otomatis karena pelanggaran (layar keluar berkali-kali)
+#   - "terputus": siswa menghilang (jaringan putus, HP mati, layar padam) sampai waktu habis, lalu sesi ditutup dari log
+#
+# Guru menentukan berapa menit yang diberikan; sistem hanya MENYARANKAN: sisa waktu saat siswa terakhir terlihat
+# (mis. keluar di menit 10 dari 15 = saran 5 menit). Guru bebas menaikkan atau menurunkan.
 #
 #   - sesi kembali "active", nilai dikosongkan (dihitung ulang saat siswa mengirim lagi)
 #   - ExamAnswer lama dihapus agar tidak ganda; jawaban dipulihkan dari log seperti saat halaman dimuat ulang
 #   - hitungan pelanggaran mulai dari nol: hanya pelanggaran SETELAH kesempatan yang dihitung menuju kirim otomatis
 #     (catatan pelanggaran lama tetap tersimpan untuk guru)
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.exam import ExamAnswer, ExamEvent, ExamSession
+from app.models.exam import Exam, ExamAnswer, ExamEvent, ExamSession, ExamViolation
+from app.models.student import Student
 
-MIN_SISA = timedelta(minutes=3)       # siswa selalu mendapat waktu cukup untuk melanjutkan
-MIN_SISA_SESI = timedelta(minutes=1)  # sesi yang terkirim kurang dari ini dari batas waktu dianggap habis waktu, bukan terhenti
+OTOMATIS = "otomatis"
+TERPUTUS = "terputus"
+DETAIL_TERPUTUS = "dari log (waktu habis)"      # ditulis selesaikan_dari_log di services/penilaian.py
+
+MIN_SISA = timedelta(minutes=3)       # saran minimal bila guru tidak mengisi menit
+MIN_SISA_SESI = timedelta(minutes=1)  # berhenti kurang dari ini dari batas waktu = waktunya memang habis, bukan terhenti
+MENIT_MIN, MENIT_MAKS = 1, 180        # batas isian guru
+
+
+@dataclass(frozen=True)
+class Henti:
+    jenis: str               # OTOMATIS / TERPUTUS
+    terakhir_aktif: datetime
+    sisa: timedelta          # sisa waktu saat siswa terakhir terlihat = saran untuk guru
+    terpakai_menit: int      # "keluar di menit ke-N"
+    durasi_menit: int
+
+    @property
+    def saran_menit(self) -> int:
+        return max(1, int(round(self.sisa.total_seconds() / 60)))
 
 
 def _aware(w):
     return w if w is None or w.tzinfo else w.replace(tzinfo=timezone.utc)
 
 
-def sesi_otomatis(db: Session, session_ids: list[int]) -> set[int]:
-    """Id sesi yang terkirim otomatis (bukan klik Kirim oleh siswa)."""
+def henti_terakhir(db: Session, session_ids: list[int]) -> dict[int, tuple[str, str | None]]:
+    """Per sesi: (jenis, detail) dari event 'kirim' atau 'kesempatan' yang PALING AKHIR.
+    Kesempatan yang lebih baru dari kiriman terakhir berarti sesi itu sedang dilanjutkan, bukan terhenti."""
     if not session_ids:
-        return set()
-    return {sid for (sid,) in db.query(ExamEvent.session_id).filter(
-        ExamEvent.session_id.in_(session_ids), ExamEvent.kind == "kirim", ExamEvent.detail == "otomatis")}
+        return {}
+    hasil = {}
+    for sid, kind, detail in (db.query(ExamEvent.session_id, ExamEvent.kind, ExamEvent.detail)
+                              .filter(ExamEvent.session_id.in_(session_ids), ExamEvent.kind.in_(["kirim", "kesempatan"]))
+                              .order_by(ExamEvent.id)):
+        hasil[sid] = (kind, detail)
+    return hasil
 
 
-def sisa_waktu(sesi: ExamSession) -> timedelta:
-    if not sesi.submitted_at or not sesi.expires_at:
-        return timedelta(0)
-    return _aware(sesi.expires_at) - _aware(sesi.submitted_at)
+def terakhir_aktif(db: Session, sesi: ExamSession) -> datetime:
+    """Kapan siswa terakhir terlihat di sesi ini: jawaban/aktivitas terakhir, pelanggaran terakhir, sinyal 'hadir'
+    (selama masih dalam waktu ujian), dan saat kesempatan dibuka. Tidak pernah melewati batas waktu."""
+    awal = _aware(sesi.started_at) or _aware(sesi.expires_at)
+    batas = _aware(sesi.expires_at)
+    kandidat = [awal]
+    for q in (db.query(func.max(ExamEvent.created_at)).filter(ExamEvent.session_id == sesi.id, ExamEvent.kind.notin_(["kirim", "kesempatan"])),
+              db.query(func.max(ExamEvent.created_at)).filter(ExamEvent.session_id == sesi.id, ExamEvent.kind == "kesempatan"),
+              db.query(func.max(ExamViolation.created_at)).filter(ExamViolation.session_id == sesi.id)):
+        w = _aware(q.scalar())
+        if w:
+            kandidat.append(w)
+    terlihat = _aware(db.query(Student.last_seen).filter(Student.id == sesi.student_id).scalar())
+    if terlihat and awal <= terlihat <= batas:      # sesudah waktu habis = siswa kembali ke beranda, bukan sedang ujian
+        kandidat.append(terlihat)
+    return min(max(kandidat), batas)
 
 
-def bisa_dilanjutkan(db: Session, sesi: ExamSession, otomatis: set[int] | None = None) -> bool:
-    """Sesi selesai karena kirim otomatis, masih ada sisa waktu, dan siswa belum membuka sesi yang lebih baru."""
-    if sesi.status == "active" or sisa_waktu(sesi) < MIN_SISA_SESI:
+def info_henti(db: Session, sesi: ExamSession, terakhir: dict | None = None) -> Henti | None:
+    """Data henti bila sesi ini boleh dibuka lagi oleh guru; None bila tidak (selesai sendiri, waktu memang habis,
+    sedang berjalan, atau siswa sudah membuka sesi yang lebih baru)."""
+    if sesi.status == "active":
+        return None
+    kind, detail = (terakhir if terakhir is not None else henti_terakhir(db, [sesi.id])).get(sesi.id, (None, None))
+    if kind != "kirim":
+        return None
+    if detail == "otomatis":
+        jenis, aktif = OTOMATIS, _aware(sesi.submitted_at)
+    elif detail == DETAIL_TERPUTUS:
+        jenis, aktif = TERPUTUS, terakhir_aktif(db, sesi)
+    else:
+        return None
+    if aktif is None or not sesi.expires_at:
+        return None
+    sisa = _aware(sesi.expires_at) - aktif
+    if sisa < MIN_SISA_SESI:
+        return None
+    if db.query(ExamSession.id).filter(ExamSession.student_id == sesi.student_id, ExamSession.exam_id == sesi.exam_id,
+                                       ExamSession.id > sesi.id).first():
+        return None
+    durasi = db.query(Exam.duration_minutes).filter(Exam.id == sesi.exam_id).scalar() or 0
+    terpakai = max(0, min(durasi, int(round(durasi - sisa.total_seconds() / 60))))
+    return Henti(jenis, aktif, sisa, terpakai, durasi)
+
+
+def bisa_dilanjutkan(db: Session, sesi: ExamSession, terakhir: dict | None = None) -> bool:
+    return info_henti(db, sesi, terakhir) is not None
+
+
+def menit_sah(teks) -> int | None | bool:
+    """Isian menit dari guru: kosong -> None (pakai saran); angka 1..180 -> int; selain itu False."""
+    teks = (str(teks) if teks is not None else "").strip()
+    if teks == "":
+        return None
+    if not teks.isdigit() or not MENIT_MIN <= int(teks) <= MENIT_MAKS:
         return False
-    ada = otomatis if otomatis is not None else sesi_otomatis(db, [sesi.id])
-    if sesi.id not in ada:
-        return False
-    lebih_baru = db.query(ExamSession.id).filter(ExamSession.student_id == sesi.student_id,
-                                                 ExamSession.exam_id == sesi.exam_id, ExamSession.id > sesi.id).first()
-    return lebih_baru is None
+    return int(teks)
 
 
-def beri_kesempatan(db: Session, sesi: ExamSession) -> bool:
-    """Buka kembali sesi. False bila tidak memenuhi syarat (tidak ada yang diubah)."""
-    if not bisa_dilanjutkan(db, sesi):
-        return False
-    sisa = max(sisa_waktu(sesi), MIN_SISA)
-    sekarang = datetime.now(timezone.utc)
+def beri_kesempatan(db: Session, sesi: ExamSession, menit: int | None = None) -> Henti | None:
+    """Buka kembali sesi dengan `menit` menit (None = saran sistem, minimal 3 menit).
+    Mengembalikan data henti (untuk dicatat), atau None bila tidak memenuhi syarat (tidak ada yang diubah)."""
+    info = info_henti(db, sesi)
+    if info is None or (menit is not None and not MENIT_MIN <= menit <= MENIT_MAKS):
+        return None
+    sisa = timedelta(minutes=menit) if menit is not None else max(info.sisa, MIN_SISA)
     db.query(ExamAnswer).filter(ExamAnswer.session_id == sesi.id).delete(synchronize_session=False)
     sesi.status, sesi.submitted_at, sesi.score = "active", None, None
-    sesi.expires_at = sekarang + sisa
-    db.add(ExamEvent(session_id=sesi.id, kind="kesempatan", detail=f"guru membuka lagi, sisa {int(sisa.total_seconds() // 60)} menit"))
-    return True
+    sesi.expires_at = datetime.now(timezone.utc) + sisa
+    db.add(ExamEvent(session_id=sesi.id, kind="kesempatan",
+                     detail=f"guru membuka lagi ({info.jenis}), diberi {int(sisa.total_seconds() // 60)} menit"))
+    return info
 
 
 def batas_hitung_pelanggaran(db: Session, session_id: int):

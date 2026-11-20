@@ -157,7 +157,7 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Remedial: panel "Perlu remedial" di hasil ujian, tombol beri remedial ke semua, unduh daftar Excel (`services/remedial.py`).
 - Grafik perkembangan: siswa `/student/progress` (menu Progres, kartu tren di beranda), guru `/teacher/students/{id}/progress` (dengan garis rata-rata rombel). Bentuk grafik dihitung di `services/perkembangan.py`, digambar SVG di `layouts/grafik.html`.
 - Rapor cetak: `/teacher/grades/class/{kelas}/rapor` (?rombel=, ?siswa=), satu halaman A4 per siswa, simpan PDF lewat dialog cetak.
-- Rute baru ada di `routers/teacher_analisis.py` (awal pemisahan teacher.py). `tingkat_siswa` pindah ke `services/rekap.py`.
+- Rute baru ada di `routers/teacher/analisis.py` (sebelumnya `teacher_analisis.py`). `tingkat_siswa` pindah ke `services/rekap.py`.
 - Cadangan ke Google Drive: isi `BACKUP_COPY_DIR` di .env dengan folder Google Drive for Desktop (sudah didukung `backup_db.py`).
 
 ## Impor soal: kode terstruktur (18 Nov 2026)
@@ -190,3 +190,8 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Tiap rombel jadi satu baris ringkas (jumlah siswa, rata-rata dengan bar, tuntas, pelanggaran); tabel siswa hanya tampil saat dibuka. Rombel pertama terbuka, lainnya tertutup.
 - Tombol "Buka semua"/"Tutup semua"; klik chip rombel membuka dan menggulir ke rombel itu (juga lewat alamat `#rombel-VII-2`). Memakai `<details>` bawaan browser, bisa lewat keyboard.
 - Ikon baru `chevron-right` di `layouts/icons.html`.
+
+## Kesempatan untuk sesi terputus + teacher.py dipecah (20 Nov 2026)
+- Kesempatan kini juga untuk siswa yang menghilang sampai waktu habis (jaringan putus, HP mati, layar padam; sesi ditutup dari log). `services/kesempatan.py`: `info_henti` (jenis `otomatis`/`terputus`, menit keluar, saran sisa), `terakhir_aktif` (aktivitas terakhir, pelanggaran, sinyal hadir selama waktu ujian, atau saat kesempatan dibuka), `menit_sah`. Guru mengisi menit 1-180 (kosong = saran, minimal 3); sistem hanya menyarankan (sisa waktu saat siswa terakhir terlihat). Alasan henti dibaca dari event `kirim`/`kesempatan` TERAKHIR, jadi siswa yang sudah mengirim sendiri sesudah dibuka tidak ditawari lagi.
+- Halaman hasil ujian: pemberitahuan "N siswa terhenti sebelum waktu habis" dengan menit keluar dan saran, serta isian menit di kolom Tindakan.
+- `routers/teacher.py` (1.300+ baris) dipecah jadi paket `routers/teacher/`: `umum` (template, kelas aktif, fungsi bersama), `akun`, `materi`, `bank_soal`, `ujian`, `hasil`, `nilai`, `siswa`, `analisis`. `__init__.py` menyatukan semuanya di bawah `/teacher`; urutan penyertaan menentukan pencocokan alamat. Kode dipindah mekanis (pohon sintaks tiap fungsi dibandingkan dengan versi lama: identik). `tests/test_rute_guru.py` + `tests/rute_guru.json` menjaga daftar rute dan memastikan tak ada rute yang tertutup rute lain. Bila menambah rute guru, perbarui `rute_guru.json`.

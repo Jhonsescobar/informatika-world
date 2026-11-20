@@ -73,13 +73,11 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 from app.routers import auth
 from app.routers import teacher
-from app.routers import teacher_analisis
 from app.routers import student
 # Mengimpor semua router yang kita punya
 
 app.include_router(auth.router)
 app.include_router(teacher.router)
-app.include_router(teacher_analisis.router)
 app.include_router(student.router)
 # Mendaftarkan router ke aplikasi utama agar URL di dalamnya bisa diakses
 

@@ -1,6 +1,5 @@
-# app/routers/teacher_analisis.py
+# app/routers/teacher/analisis.py
 # Halaman guru yang membaca hasil belajar: analisis butir soal, daftar remedial, perkembangan siswa, rapor.
-# (Dipisah dari teacher.py supaya file itu tidak makin besar; semuanya tetap di bawah /teacher.)
 
 from datetime import datetime
 
@@ -9,21 +8,21 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.academic import Rombel, SchoolClass
+from app.models.academic import Rombel
 from app.models.exam import Exam, ExamSession
 from app.models.student import Student
-from app.routers.teacher import TINGKAT, kelas_aktif, templates_env, unduh_xlsx
+from app.routers.teacher.umum import TINGKAT, kelas_aktif, templates_env, unduh_xlsx
 from app.services import audit
 from app.services.analisis import analisis_butir
 from app.services.excel import buku_remedial
-from app.services.kesempatan import beri_kesempatan
+from app.services.kesempatan import OTOMATIS, beri_kesempatan, menit_sah
 from app.services.pantau import pantau_data
 from app.services.perkembangan import bentuk_grafik, riwayat_siswa
 from app.services.remedial import beri_remedial, daftar_remedial
 from app.services.rekap import kkm_akhir, rekap_kelas, tahun_aktif, urutkan
 from app.utils.deps import require_teacher
 
-router = APIRouter(prefix="/teacher", tags=["Teacher analisis"])
+router = APIRouter(tags=["Teacher analisis"])
 
 
 def tampil(nama_template: str, **konteks) -> HTMLResponse:
@@ -105,13 +104,19 @@ async def pantau_json(request: Request, db: Session = Depends(get_db), user=Depe
 @router.post("/exams/{exam_id}/sessions/{session_id}/lanjut")
 async def beri_kesempatan_lanjut(exam_id: int, session_id: int, request: Request, db: Session = Depends(get_db),
                                  user=Depends(require_teacher)):
+    kembali = f"/teacher/exams/{exam_id}/results"
+    menit = menit_sah((await request.form()).get("menit"))
+    if menit is False:
+        return RedirectResponse(url=f"{kembali}?pesan=lanjut_menit", status_code=303)
     sesi = (db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.exam_id == exam_id)
             .with_for_update().first())
-    ok = bool(sesi) and beri_kesempatan(db, sesi)
-    if ok:
+    info = beri_kesempatan(db, sesi, menit) if sesi else None
+    if info:
         nama = db.query(Student.name).filter(Student.id == sesi.student_id).scalar()
         judul = db.query(Exam.title).filter(Exam.id == exam_id).scalar()
-        audit.catat(db, user, "Nilai", "Beri kesempatan", f"{nama} · {judul}", "sesi dibuka lagi, jawaban dipertahankan")
+        sebab = "kirim otomatis (pelanggaran)" if info.jenis == OTOMATIS else f"terputus, terakhir terlihat menit {info.terpakai_menit} dari {info.durasi_menit}"
+        diberi = menit if menit is not None else max(info.saran_menit, 3)
+        audit.catat(db, user, "Nilai", "Beri kesempatan", f"{nama} · {judul}",
+                    f"{sebab}; diberi {diberi} menit (saran {info.saran_menit}), jawaban dipertahankan")
     db.commit()
-    kembali = f"/teacher/exams/{exam_id}/results"
-    return RedirectResponse(url=f"{kembali}?pesan={'lanjut' if ok else 'lanjut_gagal'}", status_code=303)
+    return RedirectResponse(url=f"{kembali}?pesan={'lanjut' if info else 'lanjut_gagal'}", status_code=303)
