@@ -139,3 +139,18 @@ def test_rapor_cetak(guru, db, data, masuk_siswa):
     assert satu.count('class="halaman"') == 1 and "Budi" not in satu
     assert guru.get("/teacher/grades/class/XII/rapor", follow_redirects=False).status_code == 303
     assert "<script>alert" not in guru.get("/teacher/grades/class/VII/rapor?rombel=<script>alert(1)</script>").text
+
+
+# ---------- hasil ujian dikelompokkan per rombel ----------
+
+def test_hasil_ujian_dipisah_per_rombel(guru, db, data, masuk_siswa):
+    a = buat_ujian(db, data, "UH rombel")
+    kerjakan(masuk_siswa(data["siswa"]["Ani"]), a, data, 4)      # VII.1
+    kerjakan(masuk_siswa(data["siswa"]["Dodi"]), a, data, 1)     # VII.2
+    html = guru.get(f"/teacher/exams/{a}/results").text
+    bagian = html.split('aria-label="Hasil rombel')[1:]
+    assert len(bagian) == 2 and bagian[0].startswith(" VII.1") and bagian[1].startswith(" VII.2")
+    assert "Ani" in bagian[0] and "Dodi" not in bagian[0]
+    assert "Dodi" in bagian[1] and "Ani" not in bagian[1]
+    assert 'href="#rombel-VII-2"' in html and 'id="rombel-VII-2"' in html
+    assert "Tuntas 1/1" in bagian[0] and "Tuntas 0/1" in bagian[1]

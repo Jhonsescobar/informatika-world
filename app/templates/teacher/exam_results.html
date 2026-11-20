@@ -59,7 +59,9 @@
       </div>
     </div>
     {% if remedial_daftar.perlu %}
-    <div class="rows" style="margin:0 -24px -24px">
+    <details class="mt-4">
+      <summary class="chip" style="cursor:pointer;display:inline-flex">Tampilkan {{ remedial_daftar.perlu|length }} siswa</summary>
+    <div class="rows mt-3" style="margin:12px -24px -24px">
       {% for x in remedial_daftar.perlu %}
       <div class="row">
         <div class="row-main"><p class="row-title">{{ x.siswa.name|e }}</p><p class="row-meta"><span>{{ x.rombel|e }}</span></p></div>
@@ -70,6 +72,7 @@
       </div>
       {% endfor %}
     </div>
+    </details>
     {% else %}<p class="muted">Semua siswa yang sudah mengerjakan mencapai batas {{ batas }}%.</p>{% endif %}
   </section>
   {% endif %}
@@ -83,14 +86,31 @@
     {% endfor %}
   </div>
 
-  <section class="panel panel-tight overflow-x-auto" aria-label="Hasil per siswa">
+  {% if grup|length > 1 %}
+  <nav class="flex flex-wrap items-center gap-2" aria-label="Loncat ke rombel">
+    <span class="text-xs dim mr-1">Rombel</span>
+    {% for g in grup %}<a href="#{{ g.id }}" class="chip" style="text-decoration:none">{{ g.nama|e }} · {{ g.siswa }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+
+  {% for g in grup %}
+  <section class="panel panel-tight overflow-x-auto" id="{{ g.id }}" aria-label="Hasil rombel {{ g.nama|e }}" style="scroll-margin-top:16px">
+    <div class="px-6 pt-5 pb-4 flex flex-wrap items-center justify-between gap-3" style="border-bottom:1px solid var(--line)">
+      <div>
+        <h2 class="h-section">Rombel {{ g.nama|e }}</h2>
+        <p class="panel-note">{{ g.siswa }} siswa{% if g.pelanggaran %} · {{ g.pelanggaran }} pelanggaran{% endif %}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="chip">Rata-rata {{ g.rata if g.rata is not none else '–' }}</span>
+        <span class="chip {{ 'chip-teal' if g.dinilai and g.tuntas == g.dinilai else 'chip-amber' }}">Tuntas {{ g.tuntas }}/{{ g.dinilai }}</span>
+      </div>
+    </div>
     <table class="table">
-      <thead><tr><th>Siswa</th><th class="hidden md:table-cell">Rombel</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Tindakan</th></tr></thead>
+      <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Tindakan</th></tr></thead>
       <tbody>
-        {% for r in rows %}
+        {% for r in g.baris %}
         <tr>
           <td><a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="text-white font-semibold hover:underline">{{ r.siswa.name|e }}</a>{% if r.ke > 1 %} <span class="chip chip-amber ml-1">remedial {{ r.ke - 1 }}</span>{% endif %}</td>
-          <td class="dim hidden md:table-cell">{{ r.rombel|e }}</td>
           <td><span class="chip">{{ label_status.get(r.sesi.status, r.sesi.status) }}</span></td>
           <td class="num">{% if r.persen is not none %}{% set lulus = r.persen >= kkm_uji %}<span class="chip {{ 'chip-teal' if lulus else 'chip-danger' }}" style="font-size:13px" title="{{ 'Tuntas' if lulus else 'Belum tuntas' }}">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
           <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
@@ -103,12 +123,13 @@
             <a href="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}" class="link-action is-teal">Log {{ icon('arrow-right') }}</a>
           </div></td>
         </tr>
-        {% else %}
-        <tr><td colspan="7"><div class="empty my-4"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
+  {% else %}
+  <section class="panel"><div class="empty"><strong>Belum ada yang mengerjakan</strong>Hasil muncul setelah siswa mulai ujian.</div></section>
+  {% endfor %}
   <p class="text-xs dim">Pelanggaran = keluar dari layar ujian, pindah tab, mencoba menyalin, klik kanan, screenshot, atau membuka alat pengembang. Tiga kali keluar layar membuat jawaban terkirim otomatis.</p>
 </div>
 {% endblock %}

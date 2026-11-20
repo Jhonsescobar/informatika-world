@@ -171,3 +171,6 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Guru: `/teacher/students/pantau` (tombol di Daftar siswa), diperbarui tiap 10 detik dari `/teacher/students/pantau/data`.
 - Online = sinyal terakhir dalam 2 menit. Sedang ujian = sesi aktif yang belum lewat batas waktu, dengan progres soal dan pelanggaran.
 - Hanya guru yang bisa melihat; siswa diarahkan keluar dari halaman pantau.
+
+## Hasil ujian per rombel (20 Nov 2026)
+- Halaman hasil ujian dikelompokkan per rombel (VIII.1, VIII.2, ...): satu panel tiap rombel dengan rata-rata dan jumlah tuntas, tombol loncat antar rombel, urutan alami. Daftar "Perlu remedial" bisa dilipat.

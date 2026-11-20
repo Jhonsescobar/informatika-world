@@ -19,7 +19,7 @@ from app.models.grade import ScoreComponent, Score
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
 from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor, tutup_sesi_lewat
 from app.services.rekap import rekap_kelas, urutkan, persen_terbaik, tahun_aktif, kkm_akhir, kkm_ujian, BATAS_REMEDIAL
-from app.services.excel import buku_rekap, buku_ujian
+from app.services.excel import buku_rekap, buku_ujian, _kunci_alami
 from app.services.remedial import beri_remedial, daftar_remedial
 from app.services.esai import nilai_esai
 from app.services.materi import status_materi, baca_waktu, sekarang as materi_sekarang
@@ -578,12 +578,26 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
     permintaan = (db.query(RemedialRequest, Student).join(Student, Student.id == RemedialRequest.student_id)
                   .filter(RemedialRequest.exam_id == exam_id, RemedialRequest.status == "pending")
                   .order_by(RemedialRequest.created_at).all())
+    # kelompok per rombel (urutan alami VIII.2 sebelum VIII.10); urutan baris di dalam kelompok mengikuti pilihan urut
+    kelompok = {}
+    for r in rows:
+        kelompok.setdefault(r["rombel"] or "", []).append(r)
+    grup = []
+    for nama_r in sorted(kelompok, key=_kunci_alami):
+        isi = kelompok[nama_r]
+        siswa_ids = {r["siswa"].id for r in isi}
+        nilai = [terbaik[i] for i in siswa_ids if terbaik[i] >= 0]
+        grup.append({"nama": nama_r or "Tanpa rombel", "id": "rombel-" + (nama_r or "tanpa").replace(".", "-").replace(" ", "-"),
+                     "baris": isi, "siswa": len(siswa_ids),
+                     "rata": round(sum(nilai) / len(nilai)) if nilai else None,
+                     "tuntas": sum(1 for v in nilai if v >= kkm_uji), "dinilai": len(nilai),
+                     "pelanggaran": sum(r["pelanggaran"] for r in isi)})
     template = templates_env.get_template("teacher/exam_results.html")
     ada_esai = db.query(Question.id).filter(Question.bank_id == exam.bank_id, Question.question_type == "esai").first() is not None
     html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan, urut=urut, urutan=URUTAN,
                                    ada_esai=ada_esai, pesan=request.query_params.get("pesan"), n=request.query_params.get("n", "0"),
                                    batas=BATAS_REMEDIAL, total_poin=total_poin, kkm_uji=kkm_uji, user=user,
-                                   remedial_daftar=daftar_remedial(db, exam))
+                                   remedial_daftar=daftar_remedial(db, exam), grup=grup)
     return HTMLResponse(content=html_content)
 
 @router.get("/grades", response_class=HTMLResponse)

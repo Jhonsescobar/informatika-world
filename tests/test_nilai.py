@@ -157,7 +157,7 @@ def test_hasil_ujian_guru_urut_dan_tombol_remedial(guru, db, data, masuk_siswa):
     a = buat_ujian(db, data, "A")
     kerjakan(masuk_siswa(data["siswa"]["Ani"]), a, data, 1)    # 25: boleh remedial
     kerjakan(masuk_siswa(data["siswa"]["Budi"]), a, data, 4)   # 100
-    tabel = lambda url: guru.get(url).text.split('aria-label="Hasil per siswa"')[1]    # panel remedial di atasnya tidak ikut
+    tabel = lambda url: guru.get(url).text.split('aria-label="Hasil rombel')[1]    # panel remedial di atasnya tidak ikut
     html = tabel(f"/teacher/exams/{a}/results")
     assert html.index("Budi") < html.index("Ani")
     assert html.count('/remedial" method="POST"') == 1
