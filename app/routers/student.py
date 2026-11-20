@@ -17,6 +17,7 @@ from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
 from app.services.penilaian import (id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM,
                                     kunci_pilihan, terapkan_kunci, KUNCI_JAWABAN, TOLERANSI_KUNCI)
+from app.services.kesempatan import batas_hitung_pelanggaran
 from app.services.rekap import rekap_kelas, status_ujian, tingkat_siswa, BATAS_REMEDIAL
 from app.services.perkembangan import riwayat_siswa, bentuk_grafik, pesan_semangat
 from app.services.esai import nilai_esai
@@ -415,9 +416,12 @@ async def log_violation(session_id: int, request: Request, db: Session = Depends
         db.add(ExamViolation(session_id=session.id, kind=jenis))
         db.commit()
     # Hanya pindah tab / keluar layar penuh yang dihitung menuju kirim otomatis
-    waktu = [w for (w,) in db.query(ExamViolation.created_at).filter(
+    q = db.query(ExamViolation.created_at).filter(
         ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"]))
-        .order_by(ExamViolation.created_at)]
+    mulai = batas_hitung_pelanggaran(db, session.id)          # setelah guru memberi kesempatan, hitungan mulai dari nol
+    if mulai is not None:
+        q = q.filter(ExamViolation.created_at > mulai)
+    waktu = [w for (w,) in q.order_by(ExamViolation.created_at)]
     return JSONResponse({"count": hitung_keluar(waktu), "limit": MAKS_PELANGGARAN, "active": True})
 
 # --- KISI-KISI MATERI ---

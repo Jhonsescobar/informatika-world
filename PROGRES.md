@@ -174,3 +174,7 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 
 ## Hasil ujian per rombel (20 Nov 2026)
 - Halaman hasil ujian dikelompokkan per rombel (VIII.1, VIII.2, ...): satu panel tiap rombel dengan rata-rata dan jumlah tuntas, tombol loncat antar rombel, urutan alami. Daftar "Perlu remedial" bisa dilipat.
+
+## Kesempatan melanjutkan ujian (20 Nov 2026)
+- Guru bisa membuka lagi sesi yang terkirim otomatis (mis. keluar layar tak sengaja): tombol "Beri kesempatan" di hasil ujian. Jawaban tetap, waktu memakai sisa waktu (minimal 3 menit), hitungan pelanggaran mulai dari nol, catatan pelanggaran lama tetap ada. Logika di `services/kesempatan.py`.
+- Hanya untuk sesi kirim otomatis yang masih punya sisa waktu dan belum punya sesi lebih baru.

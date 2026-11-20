@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.academic import Rombel, SchoolClass
-from app.models.exam import Exam
+from app.models.exam import Exam, ExamSession
 from app.models.student import Student
 from app.routers.teacher import TINGKAT, kelas_aktif, templates_env, unduh_xlsx
 from app.services.analisis import analisis_butir
 from app.services.excel import buku_remedial
+from app.services.kesempatan import beri_kesempatan
 from app.services.pantau import pantau_data
 from app.services.perkembangan import bentuk_grafik, riwayat_siswa
 from app.services.remedial import beri_remedial, daftar_remedial
@@ -97,3 +98,15 @@ async def pantau_page(request: Request, db: Session = Depends(get_db), user=Depe
 @router.get("/students/pantau/data")
 async def pantau_json(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     return JSONResponse(pantau_data(db, kelas_aktif(request)), headers={"Cache-Control": "no-store"})
+
+
+# --- Kesempatan melanjutkan: sesi yang terkirim otomatis dibuka lagi, jawaban tetap, waktu memakai sisanya ---
+@router.post("/exams/{exam_id}/sessions/{session_id}/lanjut")
+async def beri_kesempatan_lanjut(exam_id: int, session_id: int, request: Request, db: Session = Depends(get_db),
+                                 user=Depends(require_teacher)):
+    sesi = (db.query(ExamSession).filter(ExamSession.id == session_id, ExamSession.exam_id == exam_id)
+            .with_for_update().first())
+    ok = bool(sesi) and beri_kesempatan(db, sesi)
+    db.commit()
+    kembali = f"/teacher/exams/{exam_id}/results"
+    return RedirectResponse(url=f"{kembali}?pesan={'lanjut' if ok else 'lanjut_gagal'}", status_code=303)

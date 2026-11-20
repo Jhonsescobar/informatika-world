@@ -77,6 +77,8 @@
   </section>
   {% endif %}
 
+  {% if pesan == 'lanjut' %}<div class="notice" role="status">{{ icon('check') }}<span>Kesempatan diberikan. Siswa bisa membuka ujiannya lagi dari beranda, jawabannya tetap.</span></div>{% endif %}
+  {% if pesan == 'lanjut_gagal' %}<div class="notice notice-amber" role="status">{{ icon('info') }}<span>Kesempatan tidak bisa diberikan: sesi ini bukan kirim otomatis, waktunya sudah habis, atau siswa sudah membuka sesi baru.</span></div>{% endif %}
   {% if pesan == 'remedial' %}<div class="notice" role="status">{{ icon('check') }}<span>Izin remedial diberikan ke {{ n }} siswa. Mereka akan melihat tombol Mulai remedial di beranda.</span></div>{% endif %}
   {% if pesan == 'hitung' %}<div class="notice" role="status">{{ icon('check') }}<span>Nilai esai dihitung ulang dengan aturan terbaru: {{ n }} jawaban berubah. Koreksi manual Anda tidak diubah.</span></div>{% endif %}
   <div class="flex flex-wrap items-center gap-2" aria-label="Urutkan">
@@ -116,6 +118,7 @@
           <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
           <td class="num dim hidden md:table-cell">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
           <td class="num"><div class="flex items-center justify-end gap-3">
+            {% if r.lanjut %}<form action="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}/lanjut" method="POST" onsubmit="return confirm('Beri {{ r.siswa.name|e }} kesempatan melanjutkan? Jawabannya tetap, waktu memakai sisa waktunya.');"><button type="submit" class="btn btn-sm btn-ghost" title="Terkirim otomatis karena pelanggaran. Lanjutkan dengan jawaban yang sudah ada.">{{ icon('refresh') }}Beri kesempatan</button></form>{% endif %}
             {% if r.terakhir and r.persen is not none and r.persen < batas and r.sesi.status != 'active' %}
               {% if r.remedial == 'approved' %}<span class="chip chip-teal">remedial dibuka</span>
               {% else %}<form action="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}/remedial" method="POST"><button type="submit" class="btn btn-sm btn-primary">{{ icon('refresh') }}Beri remedial</button></form>{% endif %}

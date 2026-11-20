@@ -20,6 +20,7 @@ from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, Exam
 from app.services.penilaian import id_soal_sesi, total_poin_sesi, hitung_ulang_skor, tutup_sesi_lewat
 from app.services.rekap import rekap_kelas, urutkan, persen_terbaik, tahun_aktif, kkm_akhir, kkm_ujian, BATAS_REMEDIAL
 from app.services.excel import buku_rekap, buku_ujian, _kunci_alami
+from app.services.kesempatan import bisa_dilanjutkan, sesi_otomatis
 from app.services.remedial import beri_remedial, daftar_remedial
 from app.services.esai import nilai_esai
 from app.services.materi import status_materi, baca_waktu, sekarang as materi_sekarang
@@ -546,9 +547,11 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
     terakhir = {}
     for r in rows:
         terakhir[r["siswa"].id] = r
+    otomatis = sesi_otomatis(db, [r["sesi"].id for r in rows])
     for r in rows:
         r["terakhir"] = terakhir[r["siswa"].id] is r
         r["remedial"] = remedial_aktif.get(r["siswa"].id)
+        r["lanjut"] = r["terakhir"] and bisa_dilanjutkan(db, r["sesi"], otomatis)
     # urutan: nilai tertinggi siswa dulu (default), atau nama A-Z / Z-A
     terbaik = {}
     for r in rows:
