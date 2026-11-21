@@ -26,6 +26,8 @@ class Exam(Base):
     # Fitur anti-cheat: Acak urutan soal untuk setiap siswa?
     
     randomize_options = Column(Boolean, default=False)
+    # Kekuatan watermark nama + jam di layar siswa (persen; 0 = mati). Pilihan: services/watermark.py
+    watermark_persen = Column(Integer, nullable=False, default=16, server_default="16")
     kkm = Column(Integer, nullable=True)   # KKM ujian (penanda tuntas saja); kosong = ikut komponen
 
     # Jumlah soal per siswa, diambil acak dari bank (kosong = semua soal di bank)

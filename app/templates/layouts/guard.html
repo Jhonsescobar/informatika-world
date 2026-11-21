@@ -1,8 +1,10 @@
 {# Komponen pengaman: watermark nama + tameng penutup layar. Pakai bersama static/js/iw-guard.js #}
-{% macro watermark(nama, waktu) -%}
-<div class="watermark" aria-hidden="true">
-  {%- for _ in range(60) %}<span>{{ nama|e }} · {{ waktu }}</span>{% endfor -%}
+{% macro watermark(nama, waktu, persen=7, epoch=None, offset=0) -%}
+{%- if persen -%}
+<div class="watermark" aria-hidden="true" style="opacity:{{ persen / 100 }}"{% if epoch %} data-epoch="{{ epoch }}" data-offset="{{ offset }}"{% endif %}>
+  {%- for _ in range(60) %}<span>{{ nama|e }} · <time>{{ waktu }}</time></span>{% endfor -%}
 </div>
+{%- endif -%}
 {%- endmacro %}
 
 {% macro shield(judul, pesan, tombol, terbuka=False) -%}

@@ -201,3 +201,9 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Bila guru membatasi jumlah soal per siswa, jatah tiap jenis sebanding dengan isi bank dan SAMA untuk semua siswa (mis. 10 dari 15 PG + 5 esai = 8 PG + 2 esai), tiap jenis minimal 1 soal. Dulu pengambilan murni acak sehingga komposisi PG/esai bisa berbeda antar siswa.
 - Tanpa acak: urutan bank. Sesi yang sudah berjalan tidak berubah (urutan terkunci di `question_ids`).
 
+## Watermark: kekuatan per ujian, jam berjalan (21 Nov 2026)
+- Watermark nama + jam di layar ujian ternyata sudah ada, tetapi kekuatannya tetap 7%. Uji foto simulasi (abu-abu, kontras 1,5x): 7% hilang sepenuhnya, 12% mulai pecah, 18% masih terbaca dan tetap nyaman bagi siswa.
+- Kolom `exams.watermark_persen` (migrasi `f2a8c6d4e1b9`, bawaan 16; ujian lama otomatis 16). Pilihan di `services/watermark.py`: Mati 0, Samar 8, Sedang 16, Jelas 22. Guru memilih saat membuat ujian dan bisa mengubah lewat chip "Watermark" di daftar ujian (`POST /teacher/exams/{id}/watermark`, tercatat di Catatan aksi bila berubah). Materi memakai 8% tetap.
+- Jam di watermark kini berjalan (diperbarui tiap 15 detik) dari JAM SERVER saat halaman dibuka (`data-epoch`, `data-offset`), bukan jam HP siswa yang bisa diubah. Foto yang diambil menit ke-20 tidak lagi menunjukkan jam awal.
+- Batasan jujur: watermark mempersulit dan memudahkan pelacakan, tidak mencegah foto.
+

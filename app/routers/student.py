@@ -16,6 +16,7 @@ from app.utils.deps import require_student
 from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
 from app.services.urutan_soal import susun_soal
+from app.services.watermark import jam_watermark, BAWAAN_MATERI
 from app.services.penilaian import (id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM,
                                     kunci_pilihan, terapkan_kunci, KUNCI_JAWABAN, TOLERANSI_KUNCI)
 from app.services.kesempatan import batas_hitung_pelanggaran
@@ -227,7 +228,7 @@ async def take_exam(session_id: int, request: Request, db: Session = Depends(get
             request=request, exam=exam, exam_data=exam_data, session=session,
             expires_at=session.expires_at.isoformat(),
             student_name=db.query(Student.name).filter(Student.id == session.student_id).scalar() or "",
-            sekarang=datetime.now().strftime("%d/%m/%Y %H:%M"), maks_pelanggaran=MAKS_PELANGGARAN,
+            **jam_watermark(), maks_pelanggaran=MAKS_PELANGGARAN,
             kunci_detik=int(KUNCI_JAWABAN.total_seconds())
         )
         return HTMLResponse(content=html_content)
@@ -449,7 +450,7 @@ async def material_read(material_id: int, request: Request, db: Session = Depend
         student = db.query(Student).filter(Student.id == student_id).first()
         template = templates_env.get_template("student/material_read.html")
         return HTMLResponse(content=template.render(request=request, m=materi, student_name=student.name,
-                                                    sekarang=datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                                    **jam_watermark(), wm_persen=BAWAAN_MATERI,
                                                     active_page="materials"))
     except Exception:
         return gagal("Baca materi", "/student/materials")
@@ -495,4 +496,4 @@ async def achievements_page(request: Request, db: Session = Depends(get_db), use
         )
         return HTMLResponse(content=html_content)
     except Exception as e:
-        return gagal("Lencana")
+        return gagal("Lencana")

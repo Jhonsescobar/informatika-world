@@ -8,6 +8,19 @@
   const mode = body.dataset.guard;
   if (!mode) return;
   const urlCatat = body.dataset.violationUrl || '';
+
+  // ---- jam watermark: berjalan dari jam SERVER saat halaman dibuka (jam HP siswa bisa diubah) ----
+  const wm = document.querySelector('.watermark[data-epoch]');
+  if (wm) {
+    const t0 = Number(wm.dataset.epoch), selisih = Number(wm.dataset.offset || 0), d0 = Date.now();
+    const dua = (n) => String(n).padStart(2, '0');
+    const tampilJam = () => {
+      const d = new Date(t0 + (Date.now() - d0) + selisih * 60000);
+      const teks = dua(d.getUTCDate()) + '/' + dua(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear() + ' ' + dua(d.getUTCHours()) + ':' + dua(d.getUTCMinutes());
+      wm.querySelectorAll('time').forEach((e) => { e.textContent = teks; });
+    };
+    setInterval(tampilJam, 15000);
+  }
   const tameng = document.getElementById('guard-shield');
   const teksTameng = document.getElementById('guard-shield-text');
   const judulTameng = document.getElementById('guard-shield-title');

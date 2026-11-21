@@ -14,7 +14,7 @@
 <a href="/student/materials" class="back-link">{{ icon('arrow-left') }}Semua materi</a>
 {{ isi_materi(m) }}
 <p class="mt-4 text-xs dim">Halaman ini diberi tanda nama kamu. Screenshot dan rekaman tetap terlihat milik siapa.</p>
-{{ watermark(student_name, sekarang) }}
+{{ watermark(student_name, sekarang, wm_persen, wm_epoch, wm_offset) }}
 {{ shield('Isi disembunyikan', 'Isi materi ditutup saat kamu meninggalkan halaman ini.', 'Lanjut membaca') }}
 {% endblock %}
 {% block scripts %}

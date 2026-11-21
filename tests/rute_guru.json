@@ -161,6 +161,10 @@
 ],
 [
 "POST",
+"/teacher/exams/{exam_id}/watermark"
+],
+[
+"POST",
 "/teacher/grades/components/create"
 ],
 [

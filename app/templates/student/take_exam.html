@@ -44,7 +44,7 @@
       <button type="submit" id="tombol-kirim" class="btn btn-primary" style="min-height:52px;padding:0 28px">Kirim jawaban</button>
     </div>
   </form>
-  {{ watermark(student_name, sekarang) }}
+  {{ watermark(student_name, sekarang, exam.watermark_persen, wm_epoch, wm_offset) }}
   {{ shield('Siap mengerjakan?',
             'Jawaban pilihan ganda TERKUNCI 1 menit setelah kamu memilihnya, jadi pilih hanya bila sudah yakin. Ujian dibuka layar penuh: jangan pindah tab, membuka aplikasi lain, atau keluar dari layar penuh. Setiap kejadian tercatat untuk guru, dan pada kejadian ke-' ~ maks_pelanggaran ~ ' jawaban dikirim otomatis. Waktu sudah berjalan.',
             'Mulai ujian', terbuka=True) }}

@@ -36,6 +36,14 @@
             <button type="submit" class="uj-chip" title="{{ label }} {{ 'diacak' if aktif else ('berurutan' if jenis == 'soal' else 'tetap') }}. Klik untuk {{ 'mematikan' if aktif else 'menyalakan' }} pengacakan"><b>{{ label }}</b>{{ ya if aktif else tidak }}</button>
           </form>
           {% endfor %}
+          <form action="/teacher/exams/{{ exam.id }}/watermark" method="POST" style="display:inline">
+            <label class="uj-chip" title="Nama dan jam siswa tercetak samar di layar soal, supaya foto dari HP lain bisa dilacak"><b>Watermark</b>
+              <select name="persen" aria-label="Kekuatan watermark {{ exam.title|e }}" onchange="this.form.submit()">
+                {% for p, nama in watermark_pilihan.items() %}<option value="{{ p }}" {{ 'selected' if exam.watermark_persen == p }}>{{ nama }}</option>{% endfor %}
+              </select>
+            </label>
+            <noscript><button type="submit" class="link-action">Simpan</button></noscript>
+          </form>
           <form action="/teacher/exams/{{ exam.id }}/component" method="POST" style="display:inline">
             <label class="uj-chip"><b>Komponen</b>
               <select name="component_id" aria-label="Komponen nilai {{ exam.title|e }}" onchange="this.form.submit()">
@@ -101,6 +109,10 @@
       <div class="flex flex-wrap gap-6">
         <label class="check"><input type="checkbox" name="randomize_questions" checked>Acak urutan soal (beda tiap siswa; jenis soal tetap di nomornya, PG tidak tertukar esai)</label>
         <label class="check"><input type="checkbox" name="randomize_options" checked>Acak urutan opsi A–D (beda tiap siswa)</label>
+        <label class="check">Watermark nama siswa
+          <select name="watermark_persen" class="select" style="width:auto;margin-left:8px">
+            {% for p, nama in watermark_pilihan.items() %}<option value="{{ p }}" {{ 'selected' if p == 16 }}>{{ nama }}</option>{% endfor %}
+          </select></label>
       </div>
       <div><button type="submit" class="btn btn-primary">Buat ujian</button></div>
     </form>

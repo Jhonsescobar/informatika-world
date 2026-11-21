@@ -12,6 +12,7 @@ from app.models.grade import ScoreComponent
 from app.models.question import QuestionBank
 from app.routers.teacher.umum import baca_kkm, kelas_aktif, templates_env, TINGKAT
 from app.services import audit
+from app.services import watermark as wm
 from app.services.rekap import tahun_aktif
 from app.utils.deps import require_teacher
 
@@ -36,7 +37,7 @@ async def list_exams(request: Request, db: Session = Depends(get_db), user=Depen
     html_content = template.render(request=request, exams=exams, banks=banks, komponen=komponen,
                                    nama_komponen={k.id: k for k in komponen}, remedial_pending=remedial_pending,
                                    error=request.query_params.get("error"), pesan=request.query_params.get("pesan"),
-                                   user=user)
+                                   watermark_pilihan=wm.TINGKAT, user=user)
     return HTMLResponse(content=html_content)
 
 
@@ -73,6 +74,7 @@ async def create_exam(request: Request, db: Session = Depends(get_db), user=Depe
         kkm=kkm_ujian_isi,
         randomize_questions=form.get("randomize_questions") == "on",
         randomize_options=form.get("randomize_options") == "on",
+        watermark_persen=wm.persen_sah(form.get("watermark_persen"), wm.BAWAAN),
         is_published=False,          # Saat baru dibuat, statusnya Draf
         teacher_id=int(user.get("sub")),
         question_count=int(jumlah) if jumlah.isdigit() and int(jumlah) > 0 else None,
@@ -157,6 +159,22 @@ async def toggle_acak(exam_id: int, request: Request, db: Session = Depends(get_
         # urutan soal disimpan di sesi saat siswa mulai: sesi yang sudah berjalan tidak berubah
         exam.randomize_questions = not exam.randomize_questions
     db.commit()
+    return RedirectResponse(url="/teacher/exams", status_code=303)
+
+
+@router.post("/exams/{exam_id}/watermark")
+# Mengubah kekuatan watermark nama + jam di layar siswa. Hanya tampilan: sesi berjalan memakainya saat halaman dimuat ulang
+async def set_watermark(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    persen = wm.persen_sah(form.get("persen"))
+    if not exam or persen is None:
+        return RedirectResponse(url="/teacher/exams", status_code=303)
+    if persen != exam.watermark_persen:
+        audit.catat(db, user, "Ujian", "Ubah watermark", exam.title,
+                    f"{wm.TINGKAT.get(exam.watermark_persen, exam.watermark_persen)} ke {wm.TINGKAT[persen]}")
+        exam.watermark_persen = persen
+        db.commit()
     return RedirectResponse(url="/teacher/exams", status_code=303)
 
 
