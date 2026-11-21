@@ -15,6 +15,7 @@ from app.database import get_db
 from app.utils.deps import require_student
 from app.models.student import Student
 from app.models.exam import Exam, ExamSession, ExamAnswer, RemedialRequest, ExamViolation, ExamEvent
+from app.services.urutan_soal import susun_soal
 from app.services.penilaian import (id_soal_sesi, total_poin_sesi, nilai_sesi, selesaikan_dari_log, TOLERANSI_KIRIM,
                                     kunci_pilihan, terapkan_kunci, KUNCI_JAWABAN, TOLERANSI_KUNCI)
 from app.services.kesempatan import batas_hitung_pelanggaran
@@ -160,15 +161,10 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
         now = datetime.now(timezone.utc)
         # Soal untuk siswa ini: diambil acak dari bank bila guru membatasi jumlahnya,
         # lalu urutannya dikunci di sesi supaya tetap sama walau halaman dimuat ulang
-        semua_id = [q.id for q in db.query(Question.id).filter(Question.bank_id == exam.bank_id).order_by(Question.id)]
-        if exam.question_count and exam.question_count < len(semua_id):
-            dipilih = random.sample(semua_id, exam.question_count)
-            if not exam.randomize_questions:
-                dipilih.sort()
-        else:
-            dipilih = semua_id[:]
-            if exam.randomize_questions:
-                random.shuffle(dipilih)
+        daftar = [(q.id, q.question_type) for q in db.query(Question.id, Question.question_type)
+                  .filter(Question.bank_id == exam.bank_id).order_by(Question.id)]
+        # Pengacakan hanya di antara jenis yang sama: PG tetap di nomor PG, esai tetap di nomor esai
+        dipilih = susun_soal(daftar, exam.question_count, bool(exam.randomize_questions))
         new_session = ExamSession(
             student_id=student_id,
             exam_id=exam_id,

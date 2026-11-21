@@ -45,3 +45,13 @@ KUNCI_PRIBADI_*.pem
 
 # Cadangan berkas lama saat pemasangan paket
 _cadangan_pasang/
+
+# Venv cadangan/ganda (yang dipakai hanya venv/)
+.venv/
+.venv-1/
+
+# Paket pembaruan & berkas pemeriksaan (hanya sementara saat pasang)
+rilis_*.tgz
+rilis_*.zip
+MANIFEST.sha256
+*md5*.txt
