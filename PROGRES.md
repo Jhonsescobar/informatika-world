@@ -222,3 +222,9 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Daftar pilihan (`select`) kini selalu gelap dengan teks terang di semua halaman (sebelumnya putih di atas putih pada popup Remedial karena memakai class `input`). Pilihan nonaktif redup, pilihan terpilih disorot.
 - Popup pengaturan di daftar ujian tidak lagi terpotong panel atau tertutup panel di bawahnya; saat dibuka halaman digulir halus agar popup tampil utuh, hanya satu popup terbuka, Esc atau klik di luar menutup (`static/js/iw-kaca.js`).
 - Teks lama "nilai tertinggi yang dipakai" di halaman hasil guru dan hasil siswa diganti sesuai aturan remedial ujian itu.
+
+## Batas keluar layar ditegakkan di server (24 Nov 2026)
+- Celah: batas 3x keluar layar hanya dijalankan skrip di perangkat siswa (kirim otomatis); server tidak pernah menutup sesi, sehingga Esc berulang cepat (kejadian < 3 detik digabung dan tidak menutup soal) atau memblokir skrip membuat siswa tetap bisa mengerjakan.
+- Server (`routers/student.py`): `keluar_layar` menghitung kejadian; `tutup_bila_melebihi` menutup sesi dan menilai dari jawaban tersimpan di log (`selesaikan_dari_log(alasan="otomatis")`, jadi guru tetap bisa memberi kesempatan). Masa tenggang 20 detik agar kiriman otomatis dari form sempat dipakai. Setelah tenggang: simpan jawaban, kiriman, dan pelanggaran ditolak; memuat ulang halaman ujian langsung menutup sesi.
+- Skrip (`iw-guard.js`): keluar layar penuh selalu menutup soal sampai siswa menekan lanjut (walau dihitung satu kejadian dengan sebelumnya); Esc ditahan dengan `navigator.keyboard.lock` di Chrome/Edge/Brave (harus ditahan sekitar 2 detik); respons `selesai` dari server menampilkan pesan lalu membuka hasil.
+- Tes: `tests/test_batas_keluar.py`.

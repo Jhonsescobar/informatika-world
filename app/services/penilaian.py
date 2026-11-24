@@ -113,7 +113,7 @@ def nilai_sesi(db: Session, sesi: ExamSession, exam: Exam, pilihan: dict, esai: 
     return sesi.score, salah
 
 
-def selesaikan_dari_log(db: Session, sesi: ExamSession, exam: Exam | None = None) -> None:
+def selesaikan_dari_log(db: Session, sesi: ExamSession, exam: Exam | None = None, alasan: str | None = None) -> None:
     """Waktu habis tanpa jawaban terkirim (HP mati, sinyal putus, tab ditutup):
     nilai diambil dari jawaban terakhir yang tersimpan berkala di log, sampai batas waktu + toleransi.
     Dulu sesi seperti ini tidak punya nilai sama sekali."""
@@ -134,9 +134,9 @@ def selesaikan_dari_log(db: Session, sesi: ExamSession, exam: Exam | None = None
     for qid, k in kunci_pilihan(db, sesi).items():
         pilihan[qid] = k["opsi"]
     nilai_sesi(db, sesi, exam, pilihan, esai)
-    sesi.status = "expired"
+    sesi.status = "completed" if alasan else "expired"
     sesi.submitted_at = sesi.submitted_at or datetime.now(timezone.utc)
-    db.add(ExamEvent(session_id=sesi.id, kind="kirim", detail="dari log (waktu habis)"))
+    db.add(ExamEvent(session_id=sesi.id, kind="kirim", detail=alasan or "dari log (waktu habis)"))
 
 
 def tutup_sesi_lewat(db: Session, exam_ids: list[int] | None = None) -> int:

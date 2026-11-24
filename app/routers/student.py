@@ -200,6 +200,8 @@ async def take_exam(session_id: int, request: Request, db: Session = Depends(get
             db.commit()
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
 
+        if tutup_bila_melebihi(db, session, tanpa_tenggang=True):     # memuat ulang tidak membuka ujian lagi
+            return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
         exam = db.query(Exam).filter(Exam.id == session.exam_id).first()
         ids = id_soal_sesi(db, session, exam)
         per_id = {q.id: q for q in db.query(Question).filter(Question.id.in_(ids))} if ids else {}
@@ -256,6 +258,8 @@ async def submit_exam(session_id: int, request: Request, db: Session = Depends(g
             db.commit()
             return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
 
+        if tutup_bila_melebihi(db, session):         # lewat masa tenggang setelah batas keluar layar: isi form tidak dipakai
+            return RedirectResponse(url=f"/student/exam/result/{session.id}", status_code=303)
         exam = db.query(Exam).filter(Exam.id == session.exam_id).first()
         session.submitted_at = datetime.now(timezone.utc)
         session.status = "completed"
@@ -343,6 +347,8 @@ async def log_events(session_id: int, request: Request, db: Session = Depends(ge
     session = sesi_milik(db, session_id, int(user.get("sub")))
     if not session or session.status != "active" or sudah_lewat(session, TOLERANSI_KIRIM):
         return JSONResponse({"ok": False})       # jawaban lewat waktu tidak dicatat
+    if tutup_bila_melebihi(db, session):
+        return JSONResponse({"ok": False, "selesai": True})
     try:
         data = json.loads((await request.body())[:200_000] or b"[]")
     except ValueError:
@@ -390,6 +396,18 @@ JENIS_PELANGGARAN = {"pindah_tab", "keluar_layar_penuh", "salin", "tempel", "kli
 
 JEDA_SATU_KEJADIAN = 3  # detik
 
+def kejadian_keluar(waktu: list) -> list:
+    """Waktu awal tiap kejadian keluar layar (kejadian berdekatan < 3 detik digabung jadi satu)."""
+    awal_list, awal = [], None
+    for w in waktu:
+        if w is None:
+            continue
+        if awal is None or (w - awal).total_seconds() >= JEDA_SATU_KEJADIAN:
+            awal_list.append(w)
+            awal = w
+    return awal_list
+
+
 def hitung_keluar(waktu: list) -> int:
     """Catatan keluar layar yang berdekatan (< 3 detik dari awal kejadian) dihitung SATU kali keluar.
     Pindah aplikasi saat layar penuh mengirim 'keluar_layar_penuh' + 'pindah_tab' bersamaan."""
@@ -401,6 +419,37 @@ def hitung_keluar(waktu: list) -> int:
             jumlah += 1
             awal = w
     return jumlah
+
+
+# Penegakan di SERVER: jawaban dikirim otomatis oleh skrip di HP/laptop siswa, tetapi skrip itu bisa dilewati
+# (Esc berulang, memuat ulang halaman, memblokir skrip). Setelah batas tercapai dan masa tenggang lewat,
+# server sendiri menutup sesi dan menilai dari jawaban yang sudah tersimpan di log.
+TENGGANG_BATAS = timedelta(seconds=20)
+
+
+def keluar_layar(db: Session, session) -> tuple:
+    """(jumlah keluar layar yang dihitung, waktu batas tercapai atau None)."""
+    q = db.query(ExamViolation.created_at).filter(
+        ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"]))
+    mulai = batas_hitung_pelanggaran(db, session.id)
+    if mulai is not None:
+        q = q.filter(ExamViolation.created_at > mulai)
+    awal_list = kejadian_keluar([w for (w,) in q.order_by(ExamViolation.created_at)])
+    return len(awal_list), (awal_list[MAKS_PELANGGARAN - 1] if len(awal_list) >= MAKS_PELANGGARAN else None)
+
+
+def tutup_bila_melebihi(db: Session, session, tanpa_tenggang: bool = False) -> bool:
+    """Tutup sesi aktif yang sudah melewati batas keluar layar. True bila sesi ditutup di sini."""
+    if session.status != "active":
+        return False
+    jumlah, batas = keluar_layar(db, session)
+    if batas is None:
+        return False
+    if not tanpa_tenggang and datetime.now(timezone.utc) - batas < TENGGANG_BATAS:
+        return False
+    selesaikan_dari_log(db, session, alasan="otomatis")
+    db.commit()
+    return True
 
 
 @router.post("/exam/violation/{session_id}")
@@ -415,13 +464,10 @@ async def log_violation(session_id: int, request: Request, db: Session = Depends
         db.add(ExamViolation(session_id=session.id, kind=jenis))
         db.commit()
     # Hanya pindah tab / keluar layar penuh yang dihitung menuju kirim otomatis
-    q = db.query(ExamViolation.created_at).filter(
-        ExamViolation.session_id == session.id, ExamViolation.kind.in_(["pindah_tab", "keluar_layar_penuh"]))
-    mulai = batas_hitung_pelanggaran(db, session.id)          # setelah guru memberi kesempatan, hitungan mulai dari nol
-    if mulai is not None:
-        q = q.filter(ExamViolation.created_at > mulai)
-    waktu = [w for (w,) in q.order_by(ExamViolation.created_at)]
-    return JSONResponse({"count": hitung_keluar(waktu), "limit": MAKS_PELANGGARAN, "active": True})
+    if tutup_bila_melebihi(db, session):
+        return JSONResponse({"count": MAKS_PELANGGARAN, "limit": MAKS_PELANGGARAN, "active": False, "selesai": True})
+    jumlah, _ = keluar_layar(db, session)
+    return JSONResponse({"count": jumlah, "limit": MAKS_PELANGGARAN, "active": True})
 
 # --- KISI-KISI MATERI ---
 def materi_terbuka(db: Session, tingkat):

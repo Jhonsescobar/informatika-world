@@ -52,7 +52,12 @@
   async function keluarHalaman(jenis) {
     if (sedangKirim) return;
     const sekarang = Date.now();
-    if (sekarang - jedaTerakhir < JEDA_SATU_KEJADIAN) return;
+    if (sekarang - jedaTerakhir < JEDA_SATU_KEJADIAN) {
+      // masih kejadian yang sama (tidak dihitung dua kali), tetapi layar ujian tetap ditutup:
+      // Esc berulang tidak boleh membuat siswa lanjut mengerjakan di luar layar penuh
+      if (mode === 'exam' && tameng && tameng.hidden) tutupLayar();
+      return;
+    }
     jedaTerakhir = sekarang;
     if (mode !== 'exam') { tutupLayar('Isi materi ditutup saat kamu meninggalkan halaman ini.', 'Isi disembunyikan', 'Lanjut membaca'); return; }
     const hasil = await catat(jenis || 'pindah_tab');
@@ -60,6 +65,12 @@
   }
 
   function peringatan(hasil) {
+    if (hasil && hasil.selesai) {            // server sudah menutup sesi (batas keluar layar tercapai)
+      tutupLayar('Batas keluar layar tercapai. Ujian ditutup dan dinilai dari jawaban yang tersimpan.', 'Ujian dihentikan', 'Membuka hasil...');
+      sedangKirim = true;
+      setTimeout(() => { location.href = location.href; }, 800);
+      return;
+    }
     if (!hasil || !hasil.active) { tutupLayar(); return; }
     if (hasil.count >= hasil.limit) {
       tutupLayar('Kamu ' + hasil.count + ' kali keluar dari layar ujian. Jawaban dikirim otomatis.', 'Ujian dihentikan', 'Mengirim...');
@@ -97,6 +108,7 @@
     if (mode !== 'exam' || sedangKirim || document.fullscreenElement) return;
     const tombol = document.getElementById('guard-fullscreen');
     if (tombol) tombol.hidden = false;
+    if (tameng && tameng.hidden) tutupLayar();       // keluar layar penuh selalu menutup soal sampai siswa kembali
     keluarHalaman('keluar_layar_penuh');
   });
 
@@ -219,6 +231,10 @@
     lanjut.addEventListener('click', async () => {
       if (mode === 'exam' && document.documentElement.requestFullscreen && !document.fullscreenElement) {
         try { await document.documentElement.requestFullscreen(); } catch (e) {}
+      }
+      // Chrome/Edge/Brave: Esc ditahan agar tidak langsung keluar layar penuh (harus ditahan ~2 detik)
+      if (mode === 'exam' && document.fullscreenElement && navigator.keyboard && navigator.keyboard.lock) {
+        try { await navigator.keyboard.lock(['Escape']); } catch (e) {}
       }
       tameng.hidden = true;
     });
