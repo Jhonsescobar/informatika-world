@@ -956,3 +956,14 @@ details.uj-kkm > summary::-webkit-details-marker { display: none; }
   .meter > span, .shell .main .panel, .s-content .panel { animation: none; }
   .shell .panel.stat:hover, .shell a.panel:hover, .s-main a.panel:hover, .side-link:hover { transform: none; }
 }
+
+/* Daftar pilihan (select) selalu gelap dengan teks terang, di semua halaman */
+select { color-scheme: dark; }
+select option, select optgroup { background: #0c1817; color: var(--text); }
+select option:disabled, select optgroup[label] { color: var(--dim); }
+select option:checked { background: #14403a; color: #fff; }
+/* Popup pengaturan di daftar ujian tidak boleh terpotong panel */
+.panel-tight.uj-daftar { overflow: visible; }
+details.uj-kkm[open] { z-index: 30; }
+details.uj-kkm[open] > .uj-pop { animation: iw-muncul .22s cubic-bezier(.2,.8,.2,1) both; }
+.panel-tight.uj-daftar { position: relative; z-index: 6; }

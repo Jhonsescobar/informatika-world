@@ -35,7 +35,7 @@
         <p class="mt-3 text-white">Gurumu menyetujui remedial. Mulai dari beranda.</p>
         {% elif boleh_ajukan %}
         {% if permintaan and permintaan.status == 'rejected' %}<p class="mt-3 text-sm" style="color:var(--danger)">Permintaan sebelumnya ditolak guru.</p>{% endif %}
-        <p class="mt-3 muted">Nilaimu di bawah {{ batas }}. Kamu boleh minta mengulang; guru yang memutuskan. Nilai tertinggi yang dipakai.</p>
+        <p class="mt-3 muted">Nilaimu di bawah {{ batas }}. Kamu boleh minta mengulang; guru yang memutuskan. Nilai awalmu tetap tercatat.</p>
         <form action="/student/exam/remedial/{{ session.id }}" method="POST" class="mt-5">
           <button type="submit" class="btn btn-primary">{{ icon('refresh') }}Ajukan remedial</button>
         </form>

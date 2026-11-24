@@ -217,3 +217,8 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 ## Efek kaca dan interaksi (24 Nov 2026)
 - Panel, kartu angka, dan sidebar guru serta panel dashboard siswa memakai kaca (`backdrop-filter`, gradasi tipis, garis cahaya atas). Tanpa dukungan `backdrop-filter`, tampilan lama (panel pekat) dipakai. Layar ujian siswa tidak tersentuh (aturan hanya berlaku di `.shell` dan `.s-main`).
 - Interaksi: kartu angka dan kartu tautan terangkat saat hover, sorot mengikuti kursor, tautan menu bergeser halus, meter terisi animasi, panel muncul halus, angka besar naik pelan (`static/js/iw-kaca.js`). Semua dimatikan bila perangkat memilih gerak minimal (`prefers-reduced-motion`); angkat hover dimatikan di layar sentuh.
+
+## Perbaikan UI popup dan teks remedial (24 Nov 2026)
+- Daftar pilihan (`select`) kini selalu gelap dengan teks terang di semua halaman (sebelumnya putih di atas putih pada popup Remedial karena memakai class `input`). Pilihan nonaktif redup, pilihan terpilih disorot.
+- Popup pengaturan di daftar ujian tidak lagi terpotong panel atau tertutup panel di bawahnya; saat dibuka halaman digulir halus agar popup tampil utuh, hanya satu popup terbuka, Esc atau klik di luar menutup (`static/js/iw-kaca.js`).
+- Teks lama "nilai tertinggi yang dipakai" di halaman hasil guru dan hasil siswa diganti sesuai aturan remedial ujian itu.

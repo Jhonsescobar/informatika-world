@@ -21,6 +21,7 @@ from app.services.excel import _kunci_alami, buku_ujian
 from app.services.kesempatan import henti_terakhir, info_henti
 from app.services.penilaian import hitung_ulang_skor, id_soal_sesi, total_poin_sesi, tutup_sesi_lewat
 from app.services.rekap import BATAS_REMEDIAL, kkm_akhir, kkm_ujian, tahun_aktif
+from app.services.nilai_remedial import ATURAN, aturan_sah
 from app.services.remedial import beri_remedial, daftar_remedial
 from app.utils.deps import require_teacher
 
@@ -111,7 +112,8 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
     html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan, urut=urut, urutan=URUTAN,
                                    ada_esai=ada_esai, pesan=request.query_params.get("pesan"), n=request.query_params.get("n", "0"),
                                    batas=BATAS_REMEDIAL, total_poin=total_poin, kkm_uji=kkm_uji, user=user,
-                                   remedial_daftar=daftar_remedial(db, exam), grup=grup)
+                                   remedial_daftar=daftar_remedial(db, exam), grup=grup,
+                                   aturan_label=ATURAN[aturan_sah(exam.remedial_aturan, "saran")])
     return HTMLResponse(content=html_content)
 
 

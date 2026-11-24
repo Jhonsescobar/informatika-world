@@ -7,7 +7,7 @@
 {% block lead %}<p class="lead">Ujian berstatus draf tidak terlihat siswa. Terbitkan saat sudah siap dikerjakan.</p>{% endblock %}
 {% block content %}
 <div class="stack">
-  <section class="panel panel-tight" aria-labelledby="judul-daftar">
+  <section class="panel panel-tight uj-daftar" aria-labelledby="judul-daftar">
     <div class="panel-head px-6 pt-6 mb-2">
       <h2 class="h-section" id="judul-daftar">Daftar ujian</h2>
       <span class="chip">Terbit {{ exams|selectattr('is_published')|list|length }} · Draf {{ exams|rejectattr('is_published')|list|length }}</span>
