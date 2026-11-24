@@ -12,23 +12,39 @@
       <h2 class="h-section" id="judul-daftar">Daftar ujian</h2>
       <span class="chip">Terbit {{ exams|selectattr('is_published')|list|length }} · Draf {{ exams|rejectattr('is_published')|list|length }}</span>
     </div>
-    <div class="rows">
+    <div class="uj-grid">
       {% for exam in exams %}
-      <article class="row uj">
-        <div class="uj-top">
+      <article class="ujk{{ ' is-terbit' if exam.is_published }}" data-kartu>
+       <div class="ujk-dlm">
+        <div class="ujk-depan" role="button" tabindex="0" aria-expanded="false" aria-label="Buka menu ujian {{ exam.title|e }}">
+          <div class="ujk-atas">
+            {% if exam.is_published %}<span class="uj-status">Terbit</span>{% else %}<span class="uj-status is-draft">Draf</span>{% endif %}
+            <span class="ujk-petunjuk">Buka menu</span>
+          </div>
+          <p class="ujk-judul">{{ exam.title|e }}</p>
+          <p class="row-meta uj-meta"><span>Kelas {{ exam.class_target }}</span><span>{{ exam.duration_minutes }} menit</span>{% if exam.question_count %}<span>{{ exam.question_count }} soal per siswa</span>{% endif %}</p>
+          <p class="ujk-ringkas">Soal {{ 'diacak' if exam.randomize_questions else 'berurutan' }} · opsi {{ 'diacak' if exam.randomize_options else 'tetap' }} · watermark {{ watermark_pilihan[exam.watermark_persen]|lower if exam.watermark_persen in watermark_pilihan else exam.watermark_persen }}<br>Remedial: {% if exam.remedial_bank_id %}soal lain{% else %}soal sama{% endif %} · {{ aturan_remedial[exam.remedial_aturan] }}</p>
+          <div class="ujk-bawah">
+            {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
+            {% if exam.kkm is not none %}<span class="ujk-mini">KKM {{ exam.kkm }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="ujk-belakang" inert>
+         <div class="uj-top">
           <p class="row-title">{{ exam.title|e }}</p>
-          {% if exam.is_published %}<span class="uj-status">Terbit</span>{% else %}<span class="uj-status is-draft">Draf</span>{% endif %}
           <span class="uj-sp"></span>
-          {% if remedial_pending.get(exam.id) %}<a href="/teacher/exams/{{ exam.id }}/results" class="chip chip-amber" style="text-decoration:none">{{ remedial_pending[exam.id] }} minta remedial</a>{% endif %}
-          <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil</a>
+          <button type="button" class="uj-ic ujk-tutup" data-tutup aria-label="Tutup menu {{ exam.title|e }}" style="color:var(--muted)">{{ icon('x') }}</button>
+         </div>
+         <div class="uj-top ujk-aksi">
+          <a href="/teacher/exams/{{ exam.id }}/results" class="link-action is-teal">{{ icon('chart') }}Hasil{% if remedial_pending.get(exam.id) %} · {{ remedial_pending[exam.id] }} minta remedial{% endif %}</a>
+          <span class="uj-sp"></span>
           <form action="/teacher/exams/{{ exam.id }}/toggle-publish" method="POST">
             <button type="submit" class="btn btn-sm {{ 'btn-ghost' if exam.is_published else 'btn-primary' }}">{{ 'Tarik dari siswa' if exam.is_published else 'Terbitkan' }}</button>
           </form>
           <form action="/teacher/exams/{{ exam.id }}/delete" method="POST" onsubmit="return confirm('Hapus ujian ini? Semua sesi dan jawaban siswa ikut terhapus permanen.');">
             <button type="submit" class="uj-ic" title="Hapus ujian" aria-label="Hapus ujian {{ exam.title|e }}">{{ icon('trash') }}</button>
           </form>
-        </div>
-        <p class="row-meta uj-meta"><span>Kelas {{ exam.class_target }}</span><span>{{ exam.duration_minutes }} menit</span>{% if exam.question_count %}<span>{{ exam.question_count }} soal acak per siswa</span>{% endif %}</p>
+         </div>
         <div class="uj-set">
           {% for jenis, aktif, label, ya, tidak in [('soal', exam.randomize_questions, 'Soal', 'Diacak', 'Berurutan'), ('opsi', exam.randomize_options, 'Opsi', 'Diacak', 'Tetap')] %}
           <form action="/teacher/exams/{{ exam.id }}/acak" method="POST" style="display:inline">
@@ -79,6 +95,8 @@
             </form>
           </details>
         </div>
+        </div>
+       </div>
       </article>
       {% else %}
       <div class="p-6"><div class="empty"><strong>Belum ada ujian</strong>Buat ujian dari salah satu bank soal di bawah.</div></div>
@@ -141,3 +159,4 @@
   </section>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{{ aset('js/iw-kartu.js') }}" defer></script>{% endblock %}

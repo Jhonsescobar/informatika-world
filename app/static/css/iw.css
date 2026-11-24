@@ -967,3 +967,47 @@ select option:checked { background: #14403a; color: #fff; }
 details.uj-kkm[open] { z-index: 30; }
 details.uj-kkm[open] > .uj-pop { animation: iw-muncul .22s cubic-bezier(.2,.8,.2,1) both; }
 .panel-tight.uj-daftar { position: relative; z-index: 6; }
+
+/* ---------- Daftar ujian sebagai kartu balik ---------- */
+.uj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; align-items: stretch; padding: 4px 24px 24px; grid-auto-flow: dense; }
+@media (min-width: 1100px) { .ujk.is-terbit { grid-column: span 2; } }
+.ujk { perspective: 1100px; }
+.ujk-dlm { display: grid; transition: transform .65s cubic-bezier(.2, .8, .2, 1); transform-style: preserve-3d; }
+.ujk.is-balik .ujk-dlm { transform: rotateY(180deg); }
+.ujk-depan, .ujk-belakang {
+  grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  border: 1px solid rgba(200, 255, 245, .14); border-radius: 16px; padding: 18px; min-width: 0;
+  background: linear-gradient(155deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015)), rgba(9, 19, 18, .55);
+}
+.ujk-depan { display: flex; flex-direction: column; min-height: 190px; cursor: pointer; transition: border-color .25s ease, box-shadow .3s ease, transform .3s ease; }
+.ujk-depan:hover { border-color: rgba(47, 224, 197, .5); transform: translateY(-3px); box-shadow: 0 16px 34px -16px rgba(0, 0, 0, .7); }
+.ujk-depan:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.ujk.is-terbit .ujk-depan { border-color: rgba(47, 224, 197, .35); background: linear-gradient(160deg, rgba(47, 224, 197, .13), rgba(255, 255, 255, .015) 70%), rgba(9, 19, 18, .55); }
+.ujk-belakang { transform: rotateY(180deg); display: flex; flex-direction: column; gap: 12px; }
+.ujk:not(.is-balik) .ujk-belakang, .ujk.is-balik .ujk-depan { pointer-events: none; }
+.ujk-atas { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ujk-petunjuk { font-size: 11px; color: var(--dim); opacity: 0; transition: opacity .25s ease; }
+.ujk-depan:hover .ujk-petunjuk, .ujk-depan:focus-visible .ujk-petunjuk { opacity: 1; }
+.ujk-judul { margin: 14px 0 4px; font-family: var(--font-display); font-weight: 700; font-size: clamp(1.15rem, 1rem + .6vw, 1.5rem); line-height: 1.2; color: #fff; overflow-wrap: anywhere; }
+.ujk .uj-meta { margin: 0; }
+.ujk-bawah { margin-top: auto; padding-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ujk-ringkas { margin: 14px 0 0; font-size: 12px; line-height: 1.7; color: var(--dim); }
+.ujk-mini { font-size: 11px; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 9px; }
+.ujk-belakang .uj-top { gap: 8px 12px; }
+.ujk-belakang .row-title { margin: 0; }
+.ujk-aksi { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ujk-belakang .uj-pop { position: static; margin-top: 8px; width: 100%; }
+.ujk-belakang .uj-pop.uj-pop-kol { min-width: 0; }
+.ujk-belakang .uj-pop input[type=number] { flex: 1; width: auto !important; }
+.ujk-belakang details.uj-kkm[open] { flex-basis: 100%; }
+.ujk-belakang details.uj-kkm[open] > summary { margin-bottom: 0; }
+@media (prefers-reduced-motion: reduce) { .ujk-dlm, .ujk-depan { transition: none; } .ujk-depan:hover { transform: none; } }
+
+/* Tabel hasil ujian: kolom nama siswa lebih lega, kolom Dikirim disembunyikan di layar sempit */
+.tabel-hasil th, .tabel-hasil td { padding-left: 10px; padding-right: 10px; }
+.tabel-hasil th:first-child, .tabel-hasil td:first-child { min-width: 230px; padding-left: 22px; }
+.tabel-hasil th:last-child, .tabel-hasil td:last-child { padding-right: 18px; }
+.tabel-hasil th { letter-spacing: .08em; }
+.tabel-hasil td:last-child > div { flex-wrap: wrap; row-gap: 8px; }
+.tabel-hasil td:first-child a { overflow-wrap: anywhere; }
+@media (max-width: 1279px) { .tabel-hasil .kol-kirim { display: none; } }

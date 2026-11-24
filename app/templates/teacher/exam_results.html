@@ -114,8 +114,8 @@
       <span class="chip {{ 'chip-amber' if g.pelanggaran else '' }}">{{ g.pelanggaran }} pelanggaran</span>
     </summary>
     <div class="overflow-x-auto" style="border-top:1px solid var(--line)">
-    <table class="table">
-      <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num hidden md:table-cell">Dikirim</th><th class="num">Tindakan</th></tr></thead>
+    <table class="table tabel-hasil">
+      <thead><tr><th>Siswa</th><th>Status</th><th class="num">Nilai</th><th class="num">Pelanggaran</th><th class="num kol-kirim">Dikirim</th><th class="num">Tindakan</th></tr></thead>
       <tbody>
         {% for r in g.baris %}
         <tr>
@@ -123,7 +123,7 @@
           <td><span class="chip">{{ label_status.get(r.sesi.status, r.sesi.status) }}</span>{% if r.henti %}<div class="text-xs dim" style="margin-top:4px;white-space:nowrap" title="{{ 'Terputus (jaringan atau layar padam)' if r.henti.jenis == 'terputus' else 'Terkirim otomatis karena pelanggaran' }}. Saran sisa {{ r.henti.saran_menit }} menit.">Keluar menit {{ r.henti.terpakai_menit }}/{{ r.henti.durasi_menit }}</div>{% endif %}</td>
           <td class="num">{% if r.persen is not none %}{% set lulus = r.persen >= kkm_uji %}<span class="chip {{ 'chip-teal' if lulus else 'chip-danger' }}" style="font-size:13px" title="{{ 'Tuntas' if lulus else 'Belum tuntas' }}">{{ r.persen }}%</span> <span class="dim text-xs">{{ r.sesi.score }}/{{ r.maks }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
           <td class="num">{% if r.pelanggaran %}<span class="chip {{ 'chip-danger' if r.pelanggaran >= 3 else 'chip-amber' }}">{{ r.pelanggaran }}×</span>{% else %}<span class="dim">0</span>{% endif %}</td>
-          <td class="num dim hidden md:table-cell">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
+          <td class="num dim kol-kirim">{{ r.sesi.submitted_at.astimezone().strftime('%d/%m %H:%M') if r.sesi.submitted_at else '–' }}</td>
           <td class="num"><div class="flex items-center justify-end gap-3">
             {% if r.henti %}<form action="/teacher/exams/{{ exam.id }}/sessions/{{ r.sesi.id }}/lanjut" method="POST" class="flex items-center gap-2" data-nama="{{ r.siswa.name|e }}" data-saran="{{ r.henti.saran_menit }}" onsubmit="return confirm('Beri ' + this.dataset.nama + ' kesempatan melanjutkan selama ' + (this.menit.value || this.dataset.saran) + ' menit? Jawabannya tetap.');"><input type="number" name="menit" value="{{ r.henti.saran_menit }}" min="1" max="180" inputmode="numeric" class="input" style="width:68px;padding:6px 8px" aria-label="Menit kesempatan untuk {{ r.siswa.name|e }}"><span class="text-xs dim">menit</span><button type="submit" class="btn btn-sm btn-ghost" title="Buka sesi lagi dengan jawaban yang sudah ada. Isian menit adalah saran sistem; ubah sesuai keputusan Anda.">{{ icon('refresh') }}Beri kesempatan</button></form>{% endif %}
             {% if r.terakhir and r.persen is not none and r.persen < batas and r.sesi.status != 'active' %}
