@@ -106,7 +106,8 @@ async def exam_results(exam_id: int, request: Request, db: Session = Depends(get
                      "tuntas": sum(1 for v in nilai if v >= kkm_uji), "dinilai": len(nilai),
                      "pelanggaran": sum(r["pelanggaran"] for r in isi)})
     template = templates_env.get_template("teacher/exam_results.html")
-    ada_esai = db.query(Question.id).filter(Question.bank_id == exam.bank_id, Question.question_type == "esai").first() is not None
+    ada_esai = db.query(Question.id).filter(Question.bank_id.in_([b for b in (exam.bank_id, exam.remedial_bank_id) if b]),
+                                            Question.question_type == "esai").first() is not None
     html_content = template.render(request=request, exam=exam, rows=rows, permintaan=permintaan, urut=urut, urutan=URUTAN,
                                    ada_esai=ada_esai, pesan=request.query_params.get("pesan"), n=request.query_params.get("n", "0"),
                                    batas=BATAS_REMEDIAL, total_poin=total_poin, kkm_uji=kkm_uji, user=user,

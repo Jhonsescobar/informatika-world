@@ -207,3 +207,13 @@ Status per 9 November 2026. `[x]` selesai, `[ ]` belum. Urutan roadmap = urutan 
 - Jam di watermark kini berjalan (diperbarui tiap 15 detik) dari JAM SERVER saat halaman dibuka (`data-epoch`, `data-offset`), bukan jam HP siswa yang bisa diubah. Foto yang diambil menit ke-20 tidak lagi menunjukkan jam awal.
 - Batasan jujur: watermark mempersulit dan memudahkan pelacakan, tidak mencegah foto.
 
+
+## Rekap hanya ujian terbit dan alur remedial per ujian (24 Nov 2026)
+- Rekap nilai kelas kini hanya memuat ujian berstatus terbit. Ujian yang ditarik tetapi sudah ada hasilnya tidak dihitung; guru melihat catatan "tak ikut rekap".
+- Remedial per ujian (migrasi `c4d7a2e9b1f3`): `exams.remedial_bank_id` (kosong = soal sama) dan `exams.remedial_aturan`. Sesi selesai pertama = nilai awal; sesi berikutnya = remedial. Nilai awal selalu tampil paling atas. Aturan (`services/nilai_remedial.py`): `saran` (rekap tetap nilai awal, saran akhir tampil dan ada di Excel), `kkm` (maks nilai awal, min(remedial, KKM)), `rata` (rata-rata awal dan remedial, tidak di bawah awal), `tinggi` (nilai tertinggi). Contoh awal 67, remedial 89, KKM 75: kkm 75, rata 78, tinggi 89, saran tetap 67.
+- Ujian lama dimigrasi ke `tinggi` (angka rekap tidak berubah); ujian baru bawaan `saran`. Pengaturan lewat chip "Remedial" di daftar ujian (`POST /teacher/exams/{id}/remedial-pengaturan`, tercatat di Catatan aksi).
+- Bank soal yang dipakai sebagai bank remedial terkunci dan tidak bisa dihapus. Analisis butir hanya memakai percobaan pertama. Lembar "Remedial" ditambahkan di Excel nilai.
+
+## Efek kaca dan interaksi (24 Nov 2026)
+- Panel, kartu angka, dan sidebar guru serta panel dashboard siswa memakai kaca (`backdrop-filter`, gradasi tipis, garis cahaya atas). Tanpa dukungan `backdrop-filter`, tampilan lama (panel pekat) dipakai. Layar ujian siswa tidak tersentuh (aturan hanya berlaku di `.shell` dan `.s-main`).
+- Interaksi: kartu angka dan kartu tautan terangkat saat hover, sorot mengikuti kursor, tautan menu bergeser halus, meter terisi animasi, panel muncul halus, angka besar naik pelan (`static/js/iw-kaca.js`). Semua dimatikan bila perangkat memilih gerak minimal (`prefers-reduced-motion`); angkat hover dimatikan di layar sentuh.

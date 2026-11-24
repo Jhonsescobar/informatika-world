@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.exam import Exam, ExamAnswer, ExamEvent, ExamSession, ExamViolation, RemedialRequest
 from app.models.grade import ScoreComponent
-from app.models.question import QuestionBank
+from app.models.question import Question, QuestionBank
 from app.routers.teacher.umum import baca_kkm, kelas_aktif, templates_env, TINGKAT
 from app.services import audit
 from app.services import watermark as wm
+from app.services import nilai_remedial as nr
 from app.services.rekap import tahun_aktif
 from app.utils.deps import require_teacher
 
@@ -24,7 +25,7 @@ router = APIRouter(tags=["Teacher"])
 async def list_exams(request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
     
     kelas = kelas_aktif(request)
-    exams = db.query(Exam).filter(Exam.class_target == kelas).order_by(Exam.created_at.desc()).all()
+    exams = db.query(Exam).filter(Exam.class_target == kelas).order_by(Exam.created_at.desc(), Exam.id.desc()).all()
     # Mengambil semua ujian
     
     banks = db.query(QuestionBank).filter(QuestionBank.class_target == kelas).all()
@@ -37,7 +38,7 @@ async def list_exams(request: Request, db: Session = Depends(get_db), user=Depen
     html_content = template.render(request=request, exams=exams, banks=banks, komponen=komponen,
                                    nama_komponen={k.id: k for k in komponen}, remedial_pending=remedial_pending,
                                    error=request.query_params.get("error"), pesan=request.query_params.get("pesan"),
-                                   watermark_pilihan=wm.TINGKAT, user=user)
+                                   watermark_pilihan=wm.TINGKAT, aturan_remedial=nr.ATURAN, user=user)
     return HTMLResponse(content=html_content)
 
 
@@ -176,6 +177,36 @@ async def set_watermark(exam_id: int, request: Request, db: Session = Depends(ge
         exam.watermark_persen = persen
         db.commit()
     return RedirectResponse(url="/teacher/exams", status_code=303)
+
+
+@router.post("/exams/{exam_id}/remedial-pengaturan")
+# Soal remedial (sama atau bank lain) dan aturan saran nilai akhir. Nilai awal tetap paling atas di rekap
+async def set_remedial(exam_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_teacher)):
+    form = await request.form()
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        return RedirectResponse(url="/teacher/exams", status_code=303)
+    aturan = nr.aturan_sah(form.get("aturan"))
+    bank = None
+    teks_bank = (form.get("bank") or "").strip()
+    if aturan is None or (teks_bank and not teks_bank.isdigit()):
+        return RedirectResponse(url="/teacher/exams?error=remedial", status_code=303)
+    if teks_bank:
+        bank = db.query(QuestionBank).filter(QuestionBank.id == int(teks_bank)).first()
+        isi = bank and db.query(Question.id).filter(Question.bank_id == bank.id).first()
+        if not bank or bank.class_target != exam.class_target or bank.id == exam.bank_id or not isi:
+            return RedirectResponse(url="/teacher/exams?error=remedial", status_code=303)
+    baru_bank = bank.id if bank else None
+    if baru_bank != exam.remedial_bank_id and exam.remedial_bank_id and db.query(RemedialRequest.id).filter(
+            RemedialRequest.exam_id == exam.id, RemedialRequest.status == "used").first():
+        return RedirectResponse(url="/teacher/exams?error=remedial_terkunci", status_code=303)
+    lama = (exam.remedial_bank_id, exam.remedial_aturan)
+    if lama != (baru_bank, aturan):
+        audit.catat(db, user, "Ujian", "Ubah pengaturan remedial", exam.title,
+                    f"soal: {bank.title if bank else 'sama dengan ujian'}; nilai: {nr.ATURAN[aturan]}")
+        exam.remedial_bank_id, exam.remedial_aturan = baru_bank, aturan
+        db.commit()
+    return RedirectResponse(url="/teacher/exams?pesan=remedial", status_code=303)
 
 
 @router.post("/exams/{exam_id}/delete")

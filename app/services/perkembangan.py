@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.exam import ExamSession
 from app.models.grade import ScoreComponent
-from app.services.rekap import (kkm_akhir, kkm_ujian, persen_terbaik, siswa_kelas, tahun_aktif, tingkat_siswa,
+from app.services.rekap import (kkm_akhir, kkm_ujian, nilai_efektif, siswa_kelas, tahun_aktif, tingkat_siswa,
                                 ujian_dihitung)
 
 AMBANG_TETAP = 2.0      # selisih sekecil ini (poin persen) dianggap "tetap"
@@ -45,17 +45,17 @@ def riwayat_siswa(db: Session, student_id: int, bandingkan_rombel: bool = False)
     if not ujian:
         return kosong
     ids = [e.id for e in ujian]
-    nilai = persen_terbaik(db, ids, [student_id])
     waktu = _waktu_selesai(db, student_id, ids)
     komp = {k.id: k for k in db.query(ScoreComponent).filter(ScoreComponent.class_target == kelas)}
     kkm_tahun = kkm_akhir(tahun)
+    nilai = nilai_efektif(db, ujian, [student_id], komp, kkm_tahun)
 
     rata_rombel = {}
     if bandingkan_rombel:
         murid = siswa_kelas(db, kelas, tahun)
         rombel_saya = next((rid for s, _, rid in murid if s.id == student_id), None)
         teman = [s.id for s, _, rid in murid if rid == rombel_saya] if rombel_saya else []
-        semua = persen_terbaik(db, ids, teman)
+        semua = nilai_efektif(db, ujian, teman, komp, kkm_tahun)
         for e in ujian:
             v = [semua[(sid, e.id)] for sid in teman if (sid, e.id) in semua]
             rata_rombel[e.id] = round(mean(v), 1) if v else None

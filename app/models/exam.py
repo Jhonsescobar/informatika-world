@@ -28,6 +28,10 @@ class Exam(Base):
     randomize_options = Column(Boolean, default=False)
     # Kekuatan watermark nama + jam di layar siswa (persen; 0 = mati). Pilihan: services/watermark.py
     watermark_persen = Column(Integer, nullable=False, default=16, server_default="16")
+    # Remedial: bank soal lain untuk sesi remedial (kosong = soal yang sama) dan aturan saran nilai akhir
+    # (pilihan di services/nilai_remedial.py). Ujian lama diisi "tinggi" oleh migrasi agar angkanya tidak berubah.
+    remedial_bank_id = Column(Integer, ForeignKey("question_banks.id"), nullable=True)
+    remedial_aturan = Column(String, nullable=False, default="saran")
     kkm = Column(Integer, nullable=True)   # KKM ujian (penanda tuntas saja); kosong = ikut komponen
 
     # Jumlah soal per siswa, diambil acak dari bank (kosong = semua soal di bank)

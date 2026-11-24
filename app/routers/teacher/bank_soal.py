@@ -27,7 +27,7 @@ async def list_banks(request: Request, db: Session = Depends(get_db), user=Depen
     # Mengambil semua bank soal dari database
     
     template = templates_env.get_template("teacher/question_banks.html")
-    html_content = template.render(request=request, banks=banks, user=user)
+    html_content = template.render(request=request, banks=banks, pesan=request.query_params.get("pesan"), user=user)
     return HTMLResponse(content=html_content)
 
 
@@ -54,8 +54,12 @@ async def view_bank(bank_id: int, request: Request, db: Session = Depends(get_db
 
 
 def bank_terkunci(db, bank_id: int) -> bool:
-    """Bank yang ujiannya sudah pernah dikerjakan: soalnya tidak boleh dihapus (hasil lama bisa rusak)."""
-    return db.query(ExamSession.id).join(Exam, Exam.id == ExamSession.exam_id).filter(Exam.bank_id == bank_id).first() is not None
+    """Bank yang ujiannya (atau remedialnya) sudah pernah dikerjakan: soalnya tidak boleh dihapus (hasil lama bisa rusak)."""
+    if db.query(ExamSession.id).join(Exam, Exam.id == ExamSession.exam_id).filter(Exam.bank_id == bank_id).first():
+        return True
+    # bank yang dipakai sebagai soal remedial: terkunci begitu ada siswa yang sudah memulai remedialnya
+    return db.query(RemedialRequest.id).join(Exam, Exam.id == RemedialRequest.exam_id).filter(
+        Exam.remedial_bank_id == bank_id, RemedialRequest.status == "used").first() is not None
 
 
 def _angka(teks) -> int:
@@ -235,6 +239,9 @@ async def create_question(request: Request, db: Session = Depends(get_db), user=
 async def delete_bank(bank_id: int, db: Session = Depends(get_db), user=Depends(require_teacher)):
     # Hapus bank soal beserta seluruh riwayat ujian yang memakainya
     bank = db.query(QuestionBank).filter(QuestionBank.id == bank_id).first()
+    if bank and db.query(Exam.id).filter(Exam.remedial_bank_id == bank_id).first():
+        # dipakai sebagai soal remedial: menghapusnya akan merusak jawaban sesi remedial yang sudah ada
+        return RedirectResponse(url="/teacher/question-banks?pesan=bank_remedial", status_code=303)
     if bank:
         # 1. Cari semua soal di bank ini
         questions = db.query(Question).filter(Question.bank_id == bank_id).all()

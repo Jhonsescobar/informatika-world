@@ -7,6 +7,7 @@
 {% block lead %}<p class="lead">Satu bank soal bisa dipakai untuk beberapa ujian. Buka bank untuk menambah soal.</p>{% endblock %}
 {% block content %}
 <div class="stack">
+  {% if pesan == 'bank_remedial' %}<div class="notice notice-amber" role="alert">{{ icon('info') }}<span>Bank ini tidak bisa dihapus karena dipakai sebagai soal remedial sebuah ujian. Ubah pengaturan remedial ujian itu lebih dulu.</span></div>{% endif %}
   <section class="panel" aria-labelledby="judul-form">
     <h2 class="h-section" id="judul-form">Bank soal baru</h2>
     <form action="/teacher/question-banks/create" method="POST" class="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_160px_auto] md:items-end">

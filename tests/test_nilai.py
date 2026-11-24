@@ -103,7 +103,7 @@ def test_ujian_draf_tanpa_sesi_dan_tahun_lama_tidak_dihitung(db, data, masuk_sis
 
 
 def test_remedial_memakai_nilai_tertinggi(guru, db, data, masuk_siswa):
-    a = buat_ujian(db, data, "A")
+    a = buat_ujian(db, data, "A", remedial_aturan="tinggi")      # bawaan ujian baru "saran"; di sini aturan dipilih eksplisit
     ani = masuk_siswa(data["siswa"]["Ani"])
     sesi = kerjakan(ani, a, data, 1)                    # 25
     guru.post(f"/teacher/exams/{a}/sessions/{sesi}/remedial")

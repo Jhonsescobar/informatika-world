@@ -145,6 +145,10 @@
 ],
 [
 "POST",
+"/teacher/exams/{exam_id}/remedial-pengaturan"
+],
+[
+"POST",
 "/teacher/exams/{exam_id}/remedial-semua"
 ],
 [

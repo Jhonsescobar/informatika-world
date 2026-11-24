@@ -141,6 +141,7 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
         db.query(Student.id).filter(Student.id == student_id).with_for_update().first()
 
         # Satu siswa satu kali mengerjakan: kalau sudah selesai/habis waktu, tampilkan hasilnya
+        bank_dipakai, remedial = exam.bank_id, False
         sesi_lama = db.query(ExamSession).filter(
             ExamSession.student_id == student_id,
             ExamSession.exam_id == exam_id,
@@ -158,12 +159,13 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
             if not izin:
                 return RedirectResponse(url=f"/student/exam/result/{sesi_lama.id}", status_code=303)
             izin.status = "used"
+            bank_dipakai, remedial = exam.remedial_bank_id or exam.bank_id, True    # remedial boleh memakai bank soal lain
 
         now = datetime.now(timezone.utc)
         # Soal untuk siswa ini: diambil acak dari bank bila guru membatasi jumlahnya,
         # lalu urutannya dikunci di sesi supaya tetap sama walau halaman dimuat ulang
         daftar = [(q.id, q.question_type) for q in db.query(Question.id, Question.question_type)
-                  .filter(Question.bank_id == exam.bank_id).order_by(Question.id)]
+                  .filter(Question.bank_id == bank_dipakai).order_by(Question.id)]
         # Pengacakan hanya di antara jenis yang sama: PG tetap di nomor PG, esai tetap di nomor esai
         dipilih = susun_soal(daftar, exam.question_count, bool(exam.randomize_questions))
         new_session = ExamSession(
@@ -176,7 +178,7 @@ async def start_exam(request: Request, db: Session = Depends(get_db), user=Depen
         )
         db.add(new_session)
         db.flush()
-        db.add(ExamEvent(session_id=new_session.id, kind="mulai", detail=f"{len(dipilih)} soal"))
+        db.add(ExamEvent(session_id=new_session.id, kind="mulai", detail=f"{len(dipilih)} soal" + (", remedial" if remedial else "")))
         db.commit()
         db.refresh(new_session)
         return RedirectResponse(url=f"/student/exam/take/{new_session.id}", status_code=303)

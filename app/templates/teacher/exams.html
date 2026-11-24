@@ -60,6 +60,24 @@
               <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
             </form>
           </details>
+          <span aria-hidden="true" style="flex-basis:100%;height:0"></span>
+          <details class="uj-kkm">
+            {%- set bank_rem = banks|selectattr('id', 'equalto', exam.remedial_bank_id)|first if exam.remedial_bank_id else none %}
+            <summary class="uj-chip" title="Soal remedial dan cara menghitung nilai akhir siswa yang remedial"><b>Remedial</b>{{ bank_rem.title|e if bank_rem else 'Soal sama' }} · {{ aturan_remedial[exam.remedial_aturan] }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/></svg></summary>
+            <form action="/teacher/exams/{{ exam.id }}/remedial-pengaturan" method="POST" class="uj-pop uj-pop-kol">
+              <label>Soal untuk siswa yang remedial
+                <select name="bank" class="input" aria-label="Soal remedial {{ exam.title|e }}">
+                  <option value="">Sama dengan ujian ini</option>
+                  {% for b in banks if b.id != exam.bank_id %}<option value="{{ b.id }}" {{ 'selected' if exam.remedial_bank_id == b.id }}>{{ b.title|e }}</option>{% endfor %}
+                </select></label>
+              <label>Nilai akhir siswa yang remedial
+                <select name="aturan" class="input" aria-label="Aturan nilai remedial {{ exam.title|e }}">
+                  {% for k, nama in aturan_remedial.items() %}<option value="{{ k }}" {{ 'selected' if exam.remedial_aturan == k }}>{{ nama }}</option>{% endfor %}
+                </select></label>
+              <p>Nilai awal tetap tampil paling atas. Contoh awal 67, remedial 89, KKM 75: dibatasi KKM = 75, rata-rata = 78, tertinggi = 89. "Hanya saran" membiarkan rekap memakai nilai awal; saran tetap tampil dan ada di Excel.</p>
+              <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
+            </form>
+          </details>
         </div>
       </article>
       {% else %}
@@ -74,6 +92,10 @@
     <div class="notice notice-amber mt-5">{{ icon('info') }}<span>Belum ada bank soal. <a href="/teacher/question-banks" class="underline">Buat bank soal</a> dulu.</span></div>
     {% endif %}
     {% if pesan == 'kkm' %}<div class="notice mt-5" role="status">{{ icon('check') }}<span>KKM ujian disimpan. Hanya penanda tuntas; nilai akhir tidak berubah.</span></div>{% endif %}
+    {% if pesan == 'remedial' %}<div class="notice mt-5" role="status">{{ icon('check') }}<span>Pengaturan remedial disimpan. Berlaku untuk remedial yang dimulai sesudah ini; yang sudah berjalan tidak berubah.</span></div>{% endif %}
+    {% if error == 'remedial' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Pengaturan remedial tidak valid. Bank remedial harus berisi soal, satu kelas dengan ujian, dan berbeda dari bank ujian ini.</span></div>
+    {% elif error == 'remedial_terkunci' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Bank soal remedial tidak bisa diganti karena sudah ada siswa yang mengerjakan remedialnya. Aturan nilai masih bisa diubah.</span></div>
+    {% endif %}
     {% if error == 'kkm' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>KKM harus angka 0–100, atau dikosongkan agar ikut komponen.</span></div>
     {% elif error == 'komponen' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Komponen nilai harus untuk kelas yang sama dengan ujian.</span></div>
     {% elif error == 'isian' %}<div class="notice notice-amber mt-5" role="alert">{{ icon('info') }}<span>Isian belum benar: judul wajib, durasi 1–300 menit, bank soal harus ada.</span></div>

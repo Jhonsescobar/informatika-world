@@ -92,7 +92,9 @@ async def class_grades(class_target: str, request: Request, db: Session = Depend
                    .filter(SchoolClass.class_name == class_target).order_by(Rombel.rombel_name).all())
         template = templates_env.get_template("teacher/class_grades.html")
         html_content = template.render(request=request, rekap=rekap, class_target=class_target, urut=urut, urutan=URUTAN,
-                                       rombels=rombels, rombel=rombel, kkm=kkm_akhir(tahun_aktif(db)), user=user)
+                                       rombels=rombels, rombel=rombel, kkm=kkm_akhir(tahun_aktif(db)),
+                                       ada_remedial=any(v is not None for b in rekap["baris"] for v in b["remedial"].values()),
+                                       user=user)
         return HTMLResponse(content=html_content)
     except Exception:
         logging.getLogger("informatika").exception("Rekap nilai")

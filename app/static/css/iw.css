@@ -819,6 +819,10 @@ details.uj-kkm { position: relative; }
 details.uj-kkm > summary { list-style: none; }
 details.uj-kkm > summary::-webkit-details-marker { display: none; }
 .uj-pop { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 10px; background: #0f1c18; white-space: nowrap; }
+.uj-pop.uj-pop-kol { flex-direction: column; align-items: stretch; gap: 10px; min-width: 290px; white-space: normal; }
+.uj-pop-kol label { display: grid; gap: 4px; font-size: 12px; color: var(--dim); }
+.uj-pop-kol select { min-height: 34px; padding: 4px 8px; font-size: 13px; }
+.uj-pop-kol p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--dim); }
 .score-ok { color: var(--teal); }
 .score-no { color: var(--danger); }
 
@@ -915,3 +919,40 @@ details.uj-kkm > summary::-webkit-details-marker { display: none; }
   .rombel-head .chip { justify-self: start; }
 }
 @media (prefers-reduced-motion: reduce) { .rombel-panah { transition: none; } }
+
+/* ---------- Efek kaca dan interaksi (guru dan dashboard siswa; bukan layar ujian) ---------- */
+.shell .panel, .s-main .panel { transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .3s ease, box-shadow .35s ease; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .shell .panel:not(.stat-light), .s-main .panel:not(.stat-light) {
+    background:
+      radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(47, 224, 197, var(--kilau, 0)), transparent 60%),
+      linear-gradient(155deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.022) 55%, rgba(47, 224, 197, 0.03) 100%),
+      rgba(9, 19, 18, 0.5);
+    border-color: rgba(200, 255, 245, 0.14);
+    backdrop-filter: blur(18px) saturate(1.5);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+  }
+  .shell .sidebar {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)), rgba(5, 11, 11, 0.55);
+    backdrop-filter: blur(22px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+}
+.shell .panel:hover, .s-main .panel:hover { --kilau: 0.09; border-color: rgba(47, 224, 197, 0.3); }
+.shell .panel.stat:hover, .shell a.panel:hover, .s-main a.panel:hover, .s-main .panel.stat:hover { transform: translateY(-3px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 18px 36px -14px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(47, 224, 197, 0.12); }
+.side-link:hover { transform: translateX(3px); }
+.side-link { transition: background-color .2s ease, color .2s ease, transform .25s cubic-bezier(.2,.8,.2,1); }
+.btn { transition: transform .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.btn:active { transform: scale(.97); }
+.meter > span { transform-origin: left center; animation: iw-isi .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes iw-isi { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes iw-muncul { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.shell .main .panel, .s-content .panel { animation: iw-muncul .5s cubic-bezier(.2,.8,.2,1) both; }
+@media (hover: none) { .shell .panel.stat:hover, .shell a.panel:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .shell .panel, .s-main .panel, .side-link, .btn { transition: none; }
+  .meter > span, .shell .main .panel, .s-content .panel { animation: none; }
+  .shell .panel.stat:hover, .shell a.panel:hover, .s-main a.panel:hover, .side-link:hover { transform: none; }
+}

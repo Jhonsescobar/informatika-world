@@ -37,13 +37,13 @@ URUTAN_LABEL = list(LABEL)
 
 
 def sesi_terbaik(db: Session, exam_id: int) -> list[ExamSession]:
-    """Satu sesi selesai per siswa: skor tertinggi (seri: yang lebih dulu)."""
-    terbaik: dict[int, ExamSession] = {}
+    """Satu sesi selesai per siswa: percobaan PERTAMA (nilai awal). Sesi remedial tidak dihitung karena bisa
+    memakai bank soal lain dan hasil ulangan bukan gambaran soal ujian ini."""
+    pertama: dict[int, ExamSession] = {}
     for s in (db.query(ExamSession).filter(ExamSession.exam_id == exam_id, ExamSession.status != "active",
                                            ExamSession.score != None).order_by(ExamSession.id)):
-        if s.student_id not in terbaik or s.score > terbaik[s.student_id].score:
-            terbaik[s.student_id] = s
-    return list(terbaik.values())
+        pertama.setdefault(s.student_id, s)
+    return list(pertama.values())
 
 
 def tentukan_label(n: int, p: float, d, dominan: float, jebakan: bool) -> str:

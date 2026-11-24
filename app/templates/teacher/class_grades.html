@@ -15,6 +15,9 @@
   {% if rekap.pakai_bobot and rekap.total_bobot != 100 %}
   <div class="notice notice-amber">{{ icon('info') }}<span>Bobot komponen yang sudah berisi ujian baru {{ rekap.total_bobot }}%. Nilai tetap dihitung adil (dibagi {{ rekap.total_bobot }}), tapi cek lagi pembagian bobot di <a href="/teacher/grades" class="underline">Komponen nilai</a>.</span></div>
   {% endif %}
+  {% if rekap.tak_ikut %}
+  <div class="notice notice-amber">{{ icon('info') }}<span>{{ rekap.tak_ikut|length }} ujian belum terbit dan tidak ikut rekap: {% for x in rekap.tak_ikut %}{{ x.ujian.title|e }} ({{ x.siswa }} siswa sudah mengerjakan){{ ', ' if not loop.last }}{% endfor %}. Terbitkan agar nilainya ikut.</span></div>
+  {% endif %}
   {% if rekap.pakai_bobot and rekap.lepas %}
   <div class="notice notice-amber">{{ icon('info') }}<span>{{ rekap.lepas|length }} ujian belum masuk komponen mana pun dan tidak ikut nilai akhir: {{ rekap.lepas|map(attribute='title')|map('e')|join(', ') }}.</span></div>
   {% endif %}
@@ -42,6 +45,7 @@
         {% else %}
           {% for e in rekap.ujian %}<th class="num hidden sm:table-cell">{{ e.title|e }}</th>{% endfor %}
         {% endif %}
+        {% if ada_remedial %}<th class="hidden md:table-cell" title="Nilai awal tetap dipakai di rekap, kecuali ujian itu diatur memakai nilai remedial">Remedial</th>{% endif %}
         <th class="num">Nilai akhir</th>
       </tr></thead>
       <tbody>
@@ -55,6 +59,7 @@
           {% else %}
             {% for e in rekap.ujian %}<td class="num mono hidden sm:table-cell">{{ b.ujian[e.id] if b.ujian[e.id] is not none else '–' }}</td>{% endfor %}
           {% endif %}
+          {% if ada_remedial %}<td class="hidden md:table-cell text-xs">{% for e in rekap.ujian if b.remedial[e.id] is not none %}<div style="white-space:nowrap" title="{{ e.title|e }}: awal {{ b.awal[e.id] }}, remedial {{ b.remedial[e.id] }}. {{ 'Nilai ini dipakai di rekap.' if e.remedial_aturan != 'saran' else 'Hanya saran; rekap tetap memakai nilai awal.' }}"><span class="dim">{{ e.title|e|truncate(14, True, '…') }}</span> {{ b.awal[e.id] }} <span class="dim">→</span> {{ b.remedial[e.id] }} <span class="chip {{ 'chip-teal' if e.remedial_aturan != 'saran' else '' }}" style="font-size:12px">{{ 'dipakai' if e.remedial_aturan != 'saran' else 'saran' }} {{ b.saran[e.id] }}</span></div>{% endfor %}</td>{% endif %}
           <td class="num">{% if b.akhir is not none %}<span class="chip {{ 'chip-teal' if b.tuntas else 'chip-danger' }}" style="font-size:13px">{{ b.akhir }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
         </tr>
         {% else %}

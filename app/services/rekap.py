@@ -16,12 +16,14 @@
 # Hanya ujian tahun ajaran aktif yang terbit / sudah pernah dikerjakan yang dihitung.
 
 from collections import defaultdict
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.academic import AcademicYear, Enrollment, Rombel, SchoolClass
 from app.models.exam import Exam, ExamSession
 from app.models.grade import ScoreComponent
 from app.models.question import Question
+from app.services.nilai_remedial import ATURAN_SARAN, nilai_dipakai, saran_akhir
 from app.models.student import Student
 
 KKM_DEFAULT = 75     # dipakai bila tahun ajaran belum punya KKM (seharusnya tidak terjadi setelah migrasi)
@@ -73,40 +75,84 @@ def tahun_aktif(db: Session):
     return db.query(AcademicYear).filter(AcademicYear.is_active == 1).order_by(AcademicYear.id.desc()).first()
 
 
-def persen_terbaik(db: Session, exam_ids: list[int], student_ids: list[int] | None = None) -> dict:
-    """{(student_id, exam_id): persen tertinggi 0-100} dari sesi yang sudah selesai."""
+def persen_per_sesi(db: Session, exam_ids: list[int], student_ids: list[int] | None = None) -> list[tuple]:
+    """[(student_id, exam_id, persen 0-100)] tiap sesi yang sudah selesai, urut sesi (yang pertama = nilai awal)."""
     if not exam_ids:
-        return {}
+        return []
     exams = {e.id: e for e in db.query(Exam).filter(Exam.id.in_(exam_ids))}
-    poin = {q.id: q.points or 0 for q in db.query(Question.id, Question.points)
-            .filter(Question.bank_id.in_({e.bank_id for e in exams.values()}))}
+    # poin dibaca dari soal yang benar-benar didapat tiap sesi (remedial bisa memakai bank lain)
     poin_bank = defaultdict(int)
-    for q in db.query(Question.id, Question.bank_id, Question.points).filter(Question.bank_id.in_({e.bank_id for e in exams.values()})):
+    for q in db.query(Question.bank_id, Question.points).filter(Question.bank_id.in_({e.bank_id for e in exams.values()})):
         poin_bank[q.bank_id] += q.points or 0
 
     q = db.query(ExamSession).filter(ExamSession.exam_id.in_(exam_ids), ExamSession.status != "active",
-                                     ExamSession.score != None)
+                                     ExamSession.score != None).order_by(ExamSession.id)
     if student_ids is not None:
         q = q.filter(ExamSession.student_id.in_(student_ids))
-    hasil = {}
-    for s in q:
+    sesi = q.all()
+    id_soal = {int(x) for s in sesi if s.question_ids for x in s.question_ids.split(",") if x.strip().isdigit()}
+    poin = {i: p or 0 for i, p in db.query(Question.id, Question.points).filter(Question.id.in_(id_soal))} if id_soal else {}
+    hasil = []
+    for s in sesi:
         if s.question_ids:
             maks = sum(poin.get(int(x), 0) for x in s.question_ids.split(",") if x.strip().isdigit())
         else:
             maks = poin_bank[exams[s.exam_id].bank_id]
         persen = round(s.score * 100 / maks, 1) if maks else 0.0
-        kunci = (s.student_id, s.exam_id)
-        hasil[kunci] = max(hasil.get(kunci, 0.0), min(persen, 100.0))
+        hasil.append((s.student_id, s.exam_id, min(persen, 100.0)))
     return hasil
 
 
-def ujian_dihitung(db: Session, kelas: str, tahun):
-    """Ujian tingkat ini di tahun ajaran aktif yang terbit atau sudah pernah dikerjakan."""
+def persen_terbaik(db: Session, exam_ids: list[int], student_ids: list[int] | None = None) -> dict:
+    """{(student_id, exam_id): persen tertinggi 0-100} dari semua sesi yang sudah selesai (awal maupun remedial)."""
+    hasil = {}
+    for sid, eid, persen in persen_per_sesi(db, exam_ids, student_ids):
+        hasil[(sid, eid)] = max(hasil.get((sid, eid), 0.0), persen)
+    return hasil
+
+
+def awal_dan_remedial(db: Session, exam_ids: list[int], student_ids: list[int] | None = None) -> dict:
+    """{(student_id, exam_id): (nilai awal, nilai remedial atau None)}.
+    Nilai awal = sesi pertama yang selesai; nilai remedial = yang tertinggi dari sesi-sesi sesudahnya."""
+    awal, remedial = {}, {}
+    for sid, eid, persen in persen_per_sesi(db, exam_ids, student_ids):
+        kunci = (sid, eid)
+        if kunci not in awal:
+            awal[kunci] = persen
+        else:
+            remedial[kunci] = max(remedial.get(kunci, 0.0), persen)
+    return {k: (v, remedial.get(k)) for k, v in awal.items()}
+
+
+def nilai_efektif(db: Session, ujian: list, student_ids: list[int], komponen_by_id: dict, kkm_tahun: int) -> dict:
+    """{(student_id, exam_id): nilai yang dipakai} menurut aturan remedial tiap ujian (sama dengan yang masuk rekap)."""
+    ar = awal_dan_remedial(db, [e.id for e in ujian], student_ids)
+    kkm = {e.id: kkm_ujian(e, komponen_by_id, kkm_tahun) for e in ujian}
+    exam = {e.id: e for e in ujian}
+    return {(sid, eid): nilai_dipakai(exam[eid].remedial_aturan, a, r, kkm[eid]) for (sid, eid), (a, r) in ar.items()}
+
+
+def _ujian_tingkat(db: Session, kelas: str, tahun):
     q = db.query(Exam).filter(Exam.class_target == kelas)
     if tahun:
         q = q.filter((Exam.academic_year_id == tahun.id) | (Exam.academic_year_id == None))
-    pernah = {x[0] for x in db.query(ExamSession.exam_id).distinct()}
-    return [e for e in q.order_by(Exam.id) if e.is_published or e.id in pernah]
+    return q.order_by(Exam.id)
+
+
+def ujian_dihitung(db: Session, kelas: str, tahun):
+    """Ujian tingkat ini di tahun ajaran aktif yang SEDANG TERBIT. Ujian draf atau yang ditarik dari siswa
+    tidak ikut rekap, walau sudah pernah dikerjakan (hasilnya aman dan ikut lagi begitu diterbitkan)."""
+    return [e for e in _ujian_tingkat(db, kelas, tahun) if e.is_published]
+
+
+def ujian_tak_ikut(db: Session, kelas: str, tahun) -> list[dict]:
+    """Ujian yang tidak terbit tetapi sudah ada hasilnya: tidak masuk rekap, guru perlu tahu supaya tidak mengira hilang."""
+    belum = [e for e in _ujian_tingkat(db, kelas, tahun) if not e.is_published]
+    if not belum:
+        return []
+    jumlah = dict(db.query(ExamSession.exam_id, func.count(func.distinct(ExamSession.student_id)))
+                  .filter(ExamSession.exam_id.in_([e.id for e in belum])).group_by(ExamSession.exam_id).all())
+    return [{"ujian": e, "siswa": jumlah[e.id]} for e in belum if jumlah.get(e.id)]
 
 
 def siswa_kelas(db: Session, kelas: str, tahun, rombel_id: int | None = None):
@@ -134,7 +180,7 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
     from app.services.penilaian import tutup_sesi_lewat
     tutup_sesi_lewat(db, [e.id for e in ujian])
     murid = siswa_kelas(db, kelas, tahun, rombel_id)
-    terbaik = persen_terbaik(db, [e.id for e in ujian], [s.id for s, _, _ in murid])
+    ar = awal_dan_remedial(db, [e.id for e in ujian], [s.id for s, _, _ in murid])
 
     per_komponen = {k.id: [e for e in ujian if e.component_id == k.id] for k in komponen}
     lepas = [e for e in ujian if e.component_id not in per_komponen]
@@ -146,7 +192,13 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
 
     baris = []
     for s, nama_rombel, rid in murid:
-        nilai_ujian = {e.id: terbaik.get((s.id, e.id)) for e in ujian}
+        nilai_ujian, awal, remed, saran = {}, {}, {}, {}
+        for e in ujian:
+            a, r = ar.get((s.id, e.id), (None, None))
+            awal[e.id], remed[e.id] = a, r
+            nilai_ujian[e.id] = None if a is None else nilai_dipakai(e.remedial_aturan, a, r, kkm_uj[e.id])
+            saran[e.id] = saran_akhir(ATURAN_SARAN if e.remedial_aturan == "saran" else e.remedial_aturan,
+                                      a, r, kkm_uj[e.id]) if (a is not None and r is not None) else None
         nilai_komp, belum = {}, 0
         for k in komponen:
             daftar = per_komponen[k.id]
@@ -167,6 +219,7 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
         else:
             akhir = None
         baris.append({"siswa": s, "rombel": nama_rombel, "rombel_id": rid, "ujian": nilai_ujian,
+                      "awal": awal, "remedial": remed, "saran": saran,
                       "komponen": nilai_komp, "akhir": akhir, "belum": belum,
                       "tuntas": akhir is not None and akhir >= kkm_tahun,
                       "tuntas_komponen": tuntas_komp, "tuntas_ujian": tuntas_uj})
@@ -175,7 +228,7 @@ def rekap_kelas(db: Session, kelas: str, rombel_id: int | None = None) -> dict:
     return {"kelas": kelas, "tahun": tahun, "komponen": komponen, "per_komponen": per_komponen, "ujian": ujian,
             "lepas": lepas, "baris": baris, "total_bobot": total_bobot, "bobot_semua": bobot_semua,
             "pakai_bobot": bool(total_bobot), "kkm_akhir": kkm_tahun, "kkm_komponen": kkm_komp,
-            "kkm_ujian": kkm_uj}
+            "kkm_ujian": kkm_uj, "tak_ikut": ujian_tak_ikut(db, kelas, tahun)}
 
 
 def urutkan(baris: list, urut: str) -> list:

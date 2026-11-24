@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.services.nilai_remedial import ATURAN, ATURAN_SARAN
 from app.services.rekap import KKM_DEFAULT
 
 JUDUL = Font(bold=True, size=14)
@@ -43,7 +44,7 @@ def lembar_rekap(wb, rekap, judul_lembar=None):
     ws["A1"].font = JUDUL
     ws["A2"] = f"Tahun ajaran {tahun} · KKM akhir {rekap.get('kkm_akhir', KKM_DEFAULT)} · diunduh {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     if rekap["pakai_bobot"]:
-        ws["A3"] = "Nilai akhir = Σ(nilai komponen × bobot) / Σ bobot. Nilai ujian = persen tertinggi (termasuk remedial)."
+        ws["A3"] = "Nilai akhir = Σ(nilai komponen × bobot) / Σ bobot. Nilai ujian = nilai awal; remedial ikut sesuai aturan tiap ujian (lihat lembar Remedial)."
     else:
         ws["A3"] = "Belum ada bobot komponen: nilai akhir = rata-rata semua ujian."
     kepala = ["No", "Nama", "Rombel", "NIPD"]
@@ -72,11 +73,35 @@ def lembar_rekap(wb, rekap, judul_lembar=None):
     return ws
 
 
+def lembar_remedial(wb, rekap):
+    """Satu baris per siswa per ujian yang diremedial: nilai awal, nilai remedial, saran nilai akhir, dan nilai yang masuk rekap.
+    Dibuat hanya bila ada remedial, supaya guru bisa menentukan nilai akhirnya sendiri di Excel."""
+    data = []
+    for r in rekap["baris"]:
+        for e in rekap["ujian"]:
+            if r["remedial"][e.id] is None:
+                continue
+            dipakai = "Ya" if e.remedial_aturan != "saran" else "Tidak (hanya saran)"
+            aturan = ATURAN[ATURAN_SARAN] if e.remedial_aturan == "saran" else ATURAN[e.remedial_aturan]
+            data.append([r["siswa"].name, r["rombel"], e.title, r["awal"][e.id], r["remedial"][e.id], r["saran"][e.id],
+                         aturan, dipakai, r["ujian"][e.id]])
+    if not data:
+        return None
+    ws = wb.create_sheet(title=f"Remedial {rekap['kelas']}"[:31])
+    ws["A1"] = f"Remedial Informatika Kelas {rekap['kelas']}"
+    ws["A1"].font = JUDUL
+    ws["A2"] = "Saran nilai akhir tidak pernah di bawah nilai awal. Kolom 'Masuk rekap' adalah angka yang dipakai halaman Nilai."
+    kepala = ["Nama", "Rombel", "Ujian", "Nilai awal", "Nilai remedial", "Saran nilai akhir", "Rumus saran", "Saran dipakai di rekap", "Masuk rekap"]
+    _tabel(ws, 4, kepala, data, [34, 10, 24, 12, 14, 16, 30, 22, 12])
+    return ws
+
+
 def buku_rekap(daftar_rekap) -> bytes:
     wb = Workbook()
     wb.remove(wb.active)
     for rekap in daftar_rekap:
         lembar_rekap(wb, rekap)
+        lembar_remedial(wb, rekap)
     if not wb.sheetnames:
         wb.create_sheet("Kosong")["A1"] = "Belum ada data."
     buf = BytesIO()
